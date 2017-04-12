@@ -7,10 +7,10 @@ lst <- c("C-YENZAR","GOLD-R","C-JPYUSD","JSE-INDI ","JH-ALSI40","JSE-FINI","JSE-
 #        i <- subset(JSEdat$Close,i == JSEdat$Name)
 #}
 mydat <- filter(JSEdat, JSEdat$Name == "C-YENZAR" | JSEdat$Name == "GOLD-R" |  JSEdat$Name == "C-JPYUSD" |
-                        JSEdat$Name == "JSE-INDI" | JSEdat$Name == "JSE-FINI" | JSEdat$Name == "JSE-TECH" |  
+                        JSEdat$Name == "JSE-INDI" | JSEdat$Name == "JSE-CONS" |JSEdat$Name == "JSE-FINI" | JSEdat$Name == "JSE-TECH" |  
                         JSEdat$Name == "JSE-GOLD" | JSEdat$Name == "NIKKEI" |  JSEdat$Name == "JSE-PLAT" |
                         JSEdat$Name == "JSE-PLAT" | JSEdat$Name == "JSE-METL" |  JSEdat$Name == "UALSB" |
-                        JSEdat$Name == "JSE-CONS" | JSEdat$Name == "JSE-INDM" |  JSEdat$Name == "JSE-FOOD" |
+                        JSEdat$Name == "JSE-INDM" |  JSEdat$Name == "JSE-FOOD" |
                         JSEdat$Name == "JSE-PHAR" | JSEdat$Name == "JSE-OILG" |  JSEdat$Name == "JSE-HEAL" | 
                         JSEdat$Name == "SP500" | JSEdat$Name == "JH-ALSI40" | JSEdat$Name == "USALB" |
                         JSEdat$Name == "JSE-COAL" | JSEdat$Name == "JSE-RESI" | JSEdat$Name == "JSE-ALTX" | 
@@ -91,5 +91,6 @@ FinalAggregateSpread <- spread(FinalAggregate,Instr,Result)
 z <- xts(FinalAggregateSpread[,-1],order.by = FinalAggregateSpread[,1])        # convert to xts
 mypath <- paste(file.path("/Users/johnlyons/Documents/Personal/DataScience/R/RPlots/Correlation/"),"RSC.csv",sep="")
 df.z <- data.frame(z)                                           #convert to df to include Date for xlsx view
+RscHeatmap(df.z)                #Create heatmap
 write.csv(df.z,mypath)
 }
