@@ -99,6 +99,7 @@ tor <- templst[order(templst[,2],decreasing = TRUE),]
 
 Live {data-icon="fa-area-chart"}
 ====================================================================
+
 Inputs {.sidebar}
 --------------------------------------
 
@@ -122,10 +123,20 @@ dataW1 <- reactive({
         eval(parse(text = paste(input$indicator,"W",sep="")))
 })
 
+Entry <- reactive({
+        (filter(mylst,Instrm == input$indicator)  %>% select(EntryPrice))[1,1]       # Get entry and stop loss lev
+})
+
+StopL <- reactive({
+        (filter(mylst,Instrm == input$indicator)  %>% select(StopLoss))[1,1]       # Get entry and stop loss lev
+})
+
 renderDygraph({
     dataW1()[,2:4][paste(input$dtChoice1,"::",sep="")] %>%        
     dygraph(dataW1(),main = as.character(input$indicator)) %>%
-    dySeries(c("z.Low","z.Close","z.High")) 
+    dySeries(c("z.Low","z.Close","z.High")) %>%
+    dyLimit(Entry(), color = "green") %>%
+    dyLimit(StopL(), color = "red")                
   })
 ```
 
@@ -468,4 +479,4 @@ Heatmap {data-icon="fa-table"}
 ```
 
 
--- test a change
+-- applying more changes
