@@ -52,55 +52,13 @@ for(i in mylist) {
         assign(i,z)                              #Daily data
         assign(paste(i,"W",sep=""),zw)           #Weekly data
 }
-###################### Cumulative Ret ##################
 
-#*****************************************************************
-# Load historical data
-# Loaded in Daily function        
-#*****************************************************************
-alldata2 <- unique(subset(JSEdat,JSEdat$Date >= "2017-03-01"))
-
-#*********************************************
-# Build individual xts sets of closing prices*
-#*********************************************
-for(i in KeyIndixes) {
-        y <- subset(alldata2,alldata2$Name == i)
-        y <- y[,c("Date","Close")]
-        y <- aggregate(Close ~ Date, y, mean)   # get rid of dups and multiple entries
-        zz <- xts(y[,2],order.by = y[,1])        # convert to xts
-        assign(i,zz)
-        }
-mm <- sapply(KeyIndixes,as.name)                     # assign string from mylst names to xts sets
-#*********************************************
-#merge all closing prices of mylist into myxts
-#*********************************************
-myxts <- do.call(merge,sapply(KeyIndixes,as.name))   # build single xts frame of instr closing prices
-day1 <- as.numeric(myxts[1,])                   #get closing price of first record
-dp <- head(myxts,0)                             # price on day1 of set
-for(i in 1:ncol(myxts)) {                       # build xts frame of instr and %age moves
-       pcage<- ((myxts[,i] - day1[i])  / day1[i] )*100         
-        dp  <- cbind(dp,pcage)
-        }
-#*********************************************
-#            Graph the series                *
-#*********************************************
-zoo.dp <- as.zoo(dp)                    #convert to zoo to keep column names
-# Set a color scheme:
-tsRainbow <- rainbow(ncol(zoo.dp))
-templst <- as.data.frame(tail(dp,1))
-templst <- melt(templst)                        #cast long
-templst$value <- round(templst$value,2)
-tor <- templst[order(templst[,2],decreasing = TRUE),]
-
-#################### End Cumulative Ret ################
 ```
-
-
 
 Live {data-icon="fa-area-chart"}
 ====================================================================
 
-Inputs {.sidebar}
+Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
@@ -152,7 +110,6 @@ data <- reactive({
         eval(parse(text = input$indicator)) 
 })
         
-
 renderPlot({    
     chartSeries(data(), subset = paste(input$dtChoice1,"::",sep=""),name = input$indicator,theme = "white", up.col = "blue",dn.col = "red",TA="addOBV();addSMA(n=24);addMACD();addVo();addBBands()")
   })
@@ -160,7 +117,7 @@ renderPlot({
 
 KeyIndexes {data-icon="fa-area-chart"}
 ====================================================================
-Inputs {.sidebar}
+Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
@@ -192,8 +149,41 @@ renderDygraph({
 
 Column {data-width=400}
 -------------------------------------
+
+```{r}
+### Calc cumulative returns ###
+alldata2 <- 
+        unique(subset(JSEdat,JSEdat$Date >= Sys.Date()-20))
+
+for(i in KeyIndixes) {
+        y <- subset(alldata2,alldata2$Name == i)
+        y <- y[,c("Date","Close")]
+        y <- aggregate(Close ~ Date, y, mean)   # get rid of dups and multiple entries
+        zz <- xts(y[,2],order.by = y[,1])        # convert to xts
+        assign(i,zz)
+        }
+mm <- sapply(KeyIndixes,as.name)                     # assign string from mylst names to xts sets
+
+myxts <- do.call(merge,sapply(KeyIndixes,as.name))   # build single xts frame of instr closing prices
+day1 <- as.numeric(myxts[1,])                   #get closing price of first record
+dp <- head(myxts,0)                             # price on day1 of set
+for(i in 1:ncol(myxts)) {                       # build xts frame of instr and %age moves
+       pcage<- ((myxts[,i] - day1[i])  / day1[i] )*100         
+        dp  <- cbind(dp,pcage)
+        }
+
+zoo.dp <- as.zoo(dp)                    #convert to zoo to keep column names
+# Set a color scheme:
+tsRainbow <- rainbow(ncol(zoo.dp))
+templst <- as.data.frame(tail(dp,1))
+templst <- melt(templst)                        #cast long
+templst$value <- round(templst$value,2)
+tor <- templst[order(templst[,2],decreasing = TRUE),]
+
+```
+
     
-### ChartSeries
+### CumulativeReturns
 
 ```{r}
 
@@ -209,7 +199,7 @@ renderPlot({
 Column {data-width=200}
 -------------------------------------
     
-### CumulativeReturns
+### TableOfReturns
 
 ```{r}
 
@@ -220,7 +210,7 @@ renderTable({
 
 Metals {data-icon="fa-area-chart"}
 ====================================================================
-Inputs {.sidebar}
+Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
@@ -269,7 +259,7 @@ renderPlot({
 
 Indi {data-icon="fa-area-chart"}
 ====================================================================
-Inputs {.sidebar}
+Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
@@ -318,7 +308,7 @@ TA="addOBV();addSMA(n=24);addMACD();addVo();addBBands()")
 
 Cons {data-icon="fa-area-chart"}
 ====================================================================
-Inputs {.sidebar}
+Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
@@ -367,7 +357,7 @@ TA="addOBV();addSMA(n=24);addMACD();addVo();addBBands()")
 
 Curr {data-icon="fa-area-chart"}
 ====================================================================
-Inputs {.sidebar}
+Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
@@ -415,7 +405,7 @@ renderPlot({
 
 Watchlist {data-icon="fa-area-chart"}
 ====================================================================
-Inputs {.sidebar}
+Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
@@ -455,7 +445,7 @@ dataWal <- reactive({
 })
         
 renderPlot({    
-    chartSeries(dataWal(), subset = paste(input$dtChoice7,"::",sep=""),name = input$wl,theme = "white", up.col = "blue",dn.col = "red",TA="addSMA(n=24);addBBands()")                
+    chartSeries(dataWal(), subset = paste(input$dtChoice7,"::",sep=""),name = input$wl,theme = "white", up.col = "blue",dn.col = "red",TA="addOBV();addSMA(n=24);addMACD();addVo();addBBands()")             
              
   })
 ```
@@ -470,12 +460,9 @@ Heatmap {data-icon="fa-table"}
  #data <- reactive({
  #       eval(parse(text = input$indicator))
 #})
-
-#renderDataTable({
-#        filter(JSEdat,JSEdat$Name == input$indicator)
-#    },
-#    options = list(pageLength = 50)
-#    )
+#render({
+#        filter(JSEdat,JSEdat$Name == input$indicator)   
+#        options = list(pageLength = 50)})    
 ```
 
 
