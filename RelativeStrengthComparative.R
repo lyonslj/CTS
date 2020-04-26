@@ -1,25 +1,29 @@
-RSC <- function() {
+RSC <- function(lst, label = "") {
+        
+##      --      Pass to this function a list of Instruments and it will produce a heatmap        
 library(dplyr)
 library(tidyr)
 library(quantmod)
-lst <- c("C-YENZAR","GOLD-R","C-JPYUSD","JSE-INDI ","JH-ALSI40","JSE-FINI","JSE-GOLD","NIKKEI","JSE-PLAT","JSE-METL","UALSB","JSE-CONS","JSE-COAL","JSE-INDM","JSE-FOOD","JSE-PHAR","JSE-OILG","JSE-HEAL")
-#for(i in lst) {
-#        i <- subset(JSEdat$Close,i == JSEdat$Name)
-#}
-mydat <- filter(JSEdat, JSEdat$Name == "C-YENZAR" | JSEdat$Name == "GOLD-R" |  JSEdat$Name == "C-JPYUSD" |
-                        JSEdat$Name == "JSE-INDI" | JSEdat$Name == "JSE-CONS" |JSEdat$Name == "JSE-FINI" | JSEdat$Name == "JSE-TECH" |  
-                        JSEdat$Name == "JSE-GOLD" | JSEdat$Name == "NIKKEI" |  JSEdat$Name == "JSE-PLAT" |
-                        JSEdat$Name == "JSE-PLAT" | JSEdat$Name == "JSE-METL" |  JSEdat$Name == "UALSB" |
-                        JSEdat$Name == "JSE-INDM" |  JSEdat$Name == "JSE-FOOD" |
-                        JSEdat$Name == "JSE-PHAR" | JSEdat$Name == "JSE-OILG" |  JSEdat$Name == "JSE-HEAL" | 
-                        JSEdat$Name == "SP500" | JSEdat$Name == "JH-ALSI40" | JSEdat$Name == "USALB" |
-                        JSEdat$Name == "JSE-COAL" | JSEdat$Name == "JSE-RESI" | JSEdat$Name == "JSE-ALTX" | 
-                        JSEdat$Name == "JSE-BANK" | JSEdat$Name == "BRENT")
-mydat_select <- select(mydat,Name,Date,Close)            # select certain columns
+library(reshape2)
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
+        
+fnJunkInstrm <- function(variables) {
+
+}
+
+##      -- New workings to simplify
+##      --      Use  filter for exact matches
+         mydat <- filter(JSEdat, JSEdat$Name %in% lst)
+         mydat <- mydat[mydat$Date >= Sys.Date()-300,]
+
+mydat_select <- dplyr::select(mydat,Name,Date,Close)            # select certain columns
 y <- aggregate(Close ~ Date + Name, mydat_select, mean)  # get rid of duplicates
 y_reworked <- spread(y,Name,Close)                       # spread Names to Rows
-cols <- ncol(y_reworked)
+#y_reworked <- y_reworked[ , apply(y_reworked, 2, function(x) !any(is.na(x)))]
+y_reworked <- na.omit(y_reworked)                        # get rid of NA values
+cols <- ncol(y_reworked)                               
 y_xts <- xts(y_reworked[,2:cols],order.by = y_reworked[,1],check.names = TRUE) #xts
+y_xts <- tail(y_xts,200)        ## restrict to 200 entries
 cols_xts <- ncol(y_xts)
 ### Calculate RSC ratios for all column pairs ###
 for(z in (1:(cols_xts-1))) {
@@ -89,8 +93,20 @@ FinalFrame <- rbind(BaseFrameSelect,QuoteFrameSelect,BQSelect1,BQSelect2)
 FinalAggregate <- aggregate(Result ~ Instr + Date,FinalFrame,sum)                       # Aggregate
 FinalAggregateSpread <- spread(FinalAggregate,Instr,Result) 
 z <- xts(FinalAggregateSpread[,-1],order.by = FinalAggregateSpread[,1])        # convert to xts
-mypath <- paste(file.path("/Users/johnlyons/Documents/Personal/DataScience/R/RPlots/Correlation/"),"RSC.csv",sep="")
-df.z <- data.frame(z)                                           #convert to df to include Date for xlsx view
-RscHeatmap(df.z)                #Create heatmap
-write.csv(df.z,mypath)
+mypath <- paste(file.path("/Users/johnlyons/Documents/Personal/DataScience/R/RPlots/"),"
+                .csv",sep="")
+df.z <- tail(data.frame(z),30)  
+colnames(df.z) <- gsub("\\.","-",names(df.z))
+df.z <- df.z[complete.cases(df.z),]
+df.z <- t(df.z)
+df.z <- df.z[order(df.z[,ncol(df.z)]),]
+
+
+
+to_graph <<- rownames(head(df.z[order(-df.z[,ncol(df.z)]),],20))  ##Longs
+
+RscHeatmap(df.z, label)                #Create heatmap
+return(to_graph)
+
+#write.csv(df.z,mypath)
 }
