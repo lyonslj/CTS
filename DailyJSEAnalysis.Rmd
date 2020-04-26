@@ -1,0 +1,310 @@
+---
+output: html_document
+fig_width: 23
+fig.align: "center"
+
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+
+library(TTR)
+library(quantmod)
+library(reshape2)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(reshape2)
+library(DT)
+library(plotly)
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/DailyGraphNoPng.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/WeeklyGraph.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RelativeStrengthComparative.R')
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/PLv2.R")
+
+##      --------- Load dat
+## Previously Loaded data
+        JSEloaded_dat <- read.csv("/Users/johnlyons/Documents/Personal/DataScience/R/JSEdat.csv", 
+                                  stringsAsFactors = FALSE)
+        ## -- Convert to correct format
+        JSEloaded <- JSEloaded_dat[,-1]
+        JSEloaded$Date <- as.Date(JSEloaded$Date, "%Y-%m-%d")
+        #JSEloaded <- JSEloaded[JSEloaded$Date != "2020-04-9",]
+        ## -- Check for last loaded date
+        max(sort(JSEloaded$Date))
+        JSEdat <- JSEloaded
+
+JSE.recent.dat <- JSEdat[JSEdat$Date >= Sys.Date()-450,]
+JSE.recent.dat <- unique(JSE.recent.dat[complete.cases(JSE.recent.dat),])
+
+
+list.of.i <- NULL
+df.daily.roc <- NULL
+df.weekly.roc <- NULL
+df.monthly.roc <- NULL
+for(i in unique(JSE.recent.dat$Name)) {
+        ## -- Get list of instruments  
+                y <- JSE.recent.dat[JSE.recent.dat$Name == i,]
+                z <- xts(y[,3:7],order.by = y[,2])        # convert to xts
+                zm <- to.period(z,"months")
+             
+        ## Last Month           
+                xx <- format(Sys.Date()-30,"%Y-%m")
+                zm.mar <- zm[xx]
+        ## -- Test for volume
+                if ((dim(zm.mar)[1] == 1) && (as.numeric(zm.mar$z.Volume) > 2000000 )) {
+                        list.of.i <- append(list.of.i, i)
+                        assign(paste(i,"-M",sep=""),zm)         #Monthly data
+                        assign(i,z)                             #Daily data
+                ## -- produce weekly data
+                        zw <- to.period(z,"weeks")
+                        assign(paste(i,"-W",sep=""),zw) 
+                ## -- ROC data
+                        ## -- daily
+                        if (dim(z)[1] > 30) {
+                                nm <- paste(i,".roc", sep="")
+                                roc <- round(ROC(z$Close, n = 1, type = "discrete")*100,2) 
+                                assign(nm, roc)
+                                i.tab <- data.frame(Date = index(roc), coredata(roc))
+                                i.tab$Insrm <- i
+                                df.daily.roc <- rbind(df.daily.roc, i.tab)
+                                
+                        } 
+                        ## -- weekly
+                        if (dim(zw)[1] > 10) {
+                                nm <- paste(i,".roc.W", sep="")
+                                roc <- round(ROC(zw$z.Close, n = 1, type = "discrete")*100,2)  
+                                assign(nm, roc)
+                                i.tab <- data.frame(Date = index(roc), coredata(roc))
+                                i.tab$Insrm <- i
+                                df.weekly.roc <- rbind(df.weekly.roc, i.tab)
+                        } 
+                        ## -- monthly
+                        #if (dim(zm)[1] > 3) {
+                        #        nm <- paste(i,".roc.M", sep="")
+                        #        roc <- round(ROC(zm$z.Close, n = 1, type = "discrete")*100,2) 
+                        #        assign(nm, roc)
+                        #        i.tab <- data.frame(Date = index(roc), coredata(roc))
+                        #        i.tab$Insrm <- i
+                        #        df.monthly.roc <- rbind(df.monthly.roc, i.tab)
+                        #}
+                }
+              
+
+}
+
+                        ## -- Get rid NA's
+                        df.daily.roc <- na.omit(df.daily.roc)
+                        df.weekly.roc <- na.omit(df.weekly.roc)
+                        #df.monthly.roc <- na.omit(df.monthly.roc)
+
+excl_list <- ("AGLSBB|AMSSBE|AMSSBP|ANGSBA|ANGSBO|ANGSBY|APNSBG|APNSBH|ASHINF|ASHMID|ASHT40|ASHWGB|BLUSBH|BHPSBF|CSP500|CSPROP|CTOP50|DIPULA-A|DIPULA-B|EQUITES|ETF5IT|ETFGLD|ETFPLD|ETFPLT|ETFSAP|FIRSTRNDP|GFISBC|GFISBD|GFISBT|HARSBW|HARSBO|IMPSBH|IMPSBI|IMPSBV|INDLU|J200USD|JH-ALEX|JH-ALSI40|JH-ASIN|JH-FLED|JH-MIDCAP|JH-RES|JH-SMALL|JSE|JSE-ALPI|JSE-ALSH|JSE-ALT15|JSE-ALTX|JSE-AUTM|JSE-BANK|JSE-BASM|JSE-BEVR|JSE-CALS|JSE-CHES|JSE-CIN25|JSE-COAL|JSE-CONG|JSE-CONM|JSE-CONS|JSE-CPI|JSE-CTOP|JSE-DALS|JSE-DIVP|JSE-DTOP|JSE-ELEE|JSE-EQII|JSE-FINA|JSE-FINDI|JSE-FINI|JSE-FJGI|JSE-FJVI|JSE-FOOD|JSE-FOOR|JSE-FORE|JSE-FTEL|JSE-GENF|JSE-GENI|JSE-GERE|JSE-GOLD|JSE-HCOM|JSE-HEAL|JSE-HEES|JSE-HOUS|JSE-IIND|JSE-INDE|JSE-INDI|JSE-INDM|JSE-INDT|JSE-LGCAP|JSE-LIFE|JSE-MEDI|JSE-METL|JSE-MINI|JSE-MTEL|JSE-NLIF|JSE-OILG|JSE-OILP|JSE-PERG|JSE-PHAR|JSE-PLAT|JSE-PRUT|JSE-PULS|JSE-REDS|JSE-REIV|JSE-RESI|JSE-SAPI|JSE-SCOM|JSE-SCTP|JSE-SRI|JSE-SUPS|JSE-SW40|JSE-SWALS|JSE-SXTRI|JSE-TABA|JSE-TECH|JSE-TELE|KIOSBN|MRPSBG|NPNSBA|NPNSBB|NPNSBC|NPNSBP|NPNSBZ|Nedbank-P|PRXSBQ|PSG-KST|SATRIX40|SATRIX500|SATRIXDIV|SATRIXEMG|SATRIXNDQ|SATRIXRAF|SATRIXRES|SATRIXSWX|SATRIXWRD|SBEN05|SBKSBO|SGLSBC|SGLSBD|SGLSBE|SGLSBU|SGLSTD|SHPSBG|SOLSBC|SOLSBE|STANBANKP|STXFIN|STXILB|STXIND|STXPRO|STXQUA|SYG4IRGE|SYGEURO50|SYGSP500|SYGSWIX40|TOPSBA|TOPSBB|TOPSBN|TOPSBO|TOPSBW|TOPSBX|TOPSBY|UBNPNE|VODSBG|ZA077|ZA079|WHLSBD|WHLSBE|ZAMBEZI-P")
+
+
+Indexes<-("C-YENZAR|GOLD-R|C-JPYUSD|JSE-INDI|JSE-CONS|C-USDZAR|JSE-TECH|JSE-GOLD|NIKKEI|JSE-PLAT|JSE-PLAT|JSE-METL|UALSB|JSE-INDM|JSE-FOOD|JSE-PHAR|JSE-OILG|JSE-HEAL|SP500|JH-ALSI40|USALB|JSE-COAL|JSE-RESI|JSE-ALTX|JSE-BANK|BRENT|JSE-AUTM")
+
+        
+                
+        ## -- Prepare tables
+                fnPrepData <- function(dat,period) {
+                        colnames(dat)[2] <- "Close"
+                        tm.frame <- ifelse(period == "w", 100,
+                                ifelse(period == "m", 450, 7))
+                        df.d.latest <- dat[dat$Date >= max(dat$Date)- tm.frame ,]
+                        dd <- spread(df.d.latest, Date, Close)
+                        lcol <- ncol(dd)
+                        dd$M <- round(apply(dd[,c(2:lcol)],1,mean),2)
+                        row.names(dd) <- dd$Insrm
+                        dd <- dd[,-1]
+                        dd[order(-dd$M),]
+                        
+                }
+                
+                
+                ##      ---------------------   ##      ----------------------  #
+                ##                      Datatable
+                
+                my_palette <- colorRampPalette(c("red", "yellow", "green"))(n = 301)
+
+                # (optional) defines the color breaks manually for a "skewed" color transition
+                col_breaks = c(seq(-10,-5,length=60),  # for red
+                               seq(-4,0,length=60),           # for yellow
+                               seq(1,5,length=60),           # for yellow
+                               seq(6,10,length=60),           # for yellow
+                               seq(11,30,length=60))             # for green
+                
+                  fnRocTable <- function(dat.roc,x)     { 
+                        colnames(dat.roc) <- substr(names(dat.roc),6,10)
+                        colnames(dat.roc)[ncol(dat.roc)] <- "Mean"
+                        DT::datatable(dat.roc, caption = x, 
+                                      class = 'cell-border stripe', rownames = TRUE, 
+                                      editable = TRUE, 
+                                      options = list(dom="Bfrtip",
+                                                     pageLength = 50, autoWidth = TRUE)) %>%          
+                                formatStyle(columns = c(0:ncol(dat.roc)), fontSize = '60%',
+                                            backgroundColor = styleInterval(col_breaks, 
+                        my_palette))
+                        
+                }
+             
+                  ##      ---------------------   ##      ----------------------  #
+                  ##            create daily, weekly, monthly with exclusions
+                  
+                tbl.daily.roc <-   fnPrepData(df.daily.roc,"d")
+                        tbl.daily.R <-  tbl.daily.roc[!grepl(excl_list, rownames(tbl.daily.roc)) ,]
+                        tbl.JseD.R  <-  tbl.daily.roc[grepl(Indexes, rownames(tbl.daily.roc)) ,]
+                tbl.weekly.roc <-   fnPrepData(df.weekly.roc,"w")
+                        tbl.weekly.R <-  tbl.weekly.roc[!grepl(excl_list, rownames(tbl.weekly.roc)) ,]
+                        tbl.JseW.R <-  tbl.weekly.roc[grepl(Indexes, rownames(tbl.weekly.roc)) ,]
+                #tbl.monthly.roc <-   fnPrepData(df.monthly.roc,"m")
+                #        tbl.monthly.R <-  tbl.monthly.roc[!grepl(excl_list, rownames(tbl.monthly.roc)) ,]
+                #        tbl.JseM.R <-  tbl.monthly.roc[grepl(Indexes, rownames(tbl.monthly.roc)) ,]
+                
+                
+                ##      -------------------------------------------------------         ##
+                ##                              Live Trades                             ##
+                ##      -------------------------------------------------------         ##
+                        
+                Trades <- read_excel("/Users/johnlyons/Dropbox/CTS/Trades.xlsx",
+                                     col_names = TRUE,na = "")
+                Trades <- as.data.frame(Trades)
+                Trades$Purchase <- as.Date(Trades$Purchase)
+                Trades$`Exit Dt` <- as.Date(Trades$`Exit Dt`)
+                mylst <- subset(Trades,is.na(Trades$Exit)) 
+                instLive <- as.character(sort(mylst[,1]))
+                        
+                ##      -------------------------------------------------------         ##
+                ##                              Commodities                             ##
+                ##      -------------------------------------------------------         ##
+                commods <- c("BRENT","COPPER-$","ZINC-$","IRONORE","NICKEL","PALLAD-R","GOLD-R","GOLD-PM","PLAT-R","SILV-$","SILV-R","RJCRB-TRI" )
+                
+                fnJunk <- function(variables) {
+                
+                }
+```
+
+
+## Market Analysis  {.tabset .tabset-fade .tabset-pills}
+
+### Indexes
+
+```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+      lst <- c("GOLD-R","JSE-INDI","JH-ALSI40","JSE-FINI","JSE-GOLD","NIKKEI","JSE-PLAT","JSE-METL","UALSB","JSE-CONS","JSE-COAL","JSE-INDM","JSE-FOOD","JSE-PHAR","JSE-OILG","JSE-HEAL","JSE-BANK","JSE-TECH","JSE-TELE")
+        RSC(lst,"RSC Daily Indexes")   
+        
+```
+
+
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}     
+     
+        RscHeatmap(tbl.JseD.R, "Daily Returns") 
+        RscHeatmap(tbl.JseW.R, "Weekly Returns") 
+        #RscHeatmap(tbl.JseM.R, "Monthly Returns")  
+#df
+      #fnRocTable(tbl.JseD.R, "DailyROC")
+        
+```
+
+
+
+#### Graph Daily Indexes
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE}  
+      
+      instrm_set <- head(rownames(tbl.JseD.R),19)
+     DailyGraphNoPng(instrm_set)
+        
+```
+
+
+
+
+### Live Trades
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+        
+        DailyGraphNoPng(instLive)
+        
+```
+
+### Risk
+
+```{r, fig.width=13,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+        
+        fnProffitLoss()
+        
+```
+
+
+### Daily
+
+```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+        leaders <- head(rownames(tbl.daily.R[order(-tbl.daily.R[,ncol(tbl.daily.R)-1]),]),30)
+        
+        RSC(leaders,"RSC Daily leaders")
+        
+```
+
+
+#### Graph Top Daily
+
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE}  
+      
+      instrm_set <- head(leaders,16)
+              #rownames(tbl.daily.R),15)
+     DailyGraphNoPng(gsub("\\.","-", to_graph))
+        
+```
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+        
+        fnRocTable(tbl.daily.R, "DailyROC")
+        
+```
+
+
+### Weekly
+
+
+```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+        leaders <- head(rownames(tbl.weekly.R[order(-tbl.weekly.R[,ncol(tbl.weekly.R)-1]),]),30)
+        losers <- tail(rownames(tbl.weekly.R[order(-tbl.weekly.R[,ncol(tbl.weekly.R)-1]),]),30)
+        
+        RSC(leaders,"RSC Weekly leaders")
+        
+```
+
+#### Graph Top Weekly
+
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE}
+      
+     
+        # Somehere RSC() substitutes - with . ==> need to revert back
+        WeeklyGraph(to)
+       
+        
+```
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+        
+        fnRocTable(tbl.weekly.R, "WeeklyROC")
+```
+
+
