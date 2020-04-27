@@ -33,6 +33,7 @@ source('~/Documents/Personal/DataScience/R/JL CTS scripts/WeeklyGraph.R')
 source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
 source('~/Documents/Personal/DataScience/R/JL CTS scripts/RelativeStrengthComparative.R')
 source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/PLv2.R")
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/CumRet.R")
 
 ##      --------- Load dat
 ## Previously Loaded data
@@ -114,6 +115,21 @@ excl_list <- ("AGLSBB|AMSSBE|AMSSBP|ANGSBA|ANGSBO|ANGSBY|APNSBG|APNSBH|ASHINF|AS
 
 
 Indexes<-("C-YENZAR|GOLD-R|C-JPYUSD|JSE-INDI|JSE-CONS|C-USDZAR|JSE-TECH|JSE-GOLD|NIKKEI|JSE-PLAT|JSE-PLAT|JSE-METL|UALSB|JSE-INDM|JSE-FOOD|JSE-PHAR|JSE-OILG|JSE-HEAL|SP500|JH-ALSI40|USALB|JSE-COAL|JSE-RESI|JSE-ALTX|JSE-BANK|BRENT|JSE-AUTM")
+
+        PLAT <- c("RBPLAT","ANGLOPLAT","IMPLATS","NORTHAM","SIBANYE-S")
+        GOLD <- c("ANGGOLD"   ,"PAN-AF", "DRDGOLD" ,  "HARMONY" ,  "GFIELDS")
+        INDM <- c("KUMBAIO")
+        BANK <- c("ABSAG","STANBANK","NEDCOR","FIRSTRAND","CAPITEC","DISCOVERY")
+        FOOD <- c("RCL","CLOVER","RHODES","A-V-I","OCEANA","ASTRAL","TONGAAT","PNR-FOODS","TIGBRANDS","JSE-FOOD")
+        METL <- c("GLENCORE","ARM","ANGLO","BILLITON","ASSORE")
+        CONS <- c("ADVTECH","BIDCORP","CHOPPIES","CITYLDG","CLICKS","CURRO","CASHBIL","FAMBRANDS","HOLDSPORT","ITLTILE",
+                  "MRPRICE","MASSMART","NASPERSN","PICKNPAY","SHOPRIT","SPAR","SUNINT","TFG","TRUWTHS","WOOLIES")
+        TECH <- c("PROSUS","DATATEC","ALTRON", "NASPERSN")
+        RESI <- c("ANGLO","ANGLOPLAT","ANGGOLD","BILLITON","GFIELDS","IMPLATS","SAPPI","SIBANYE-S","SASOL")
+        HEAL <- c("ASPEN","ADCOCK","ASCENDIS","MEDCLIN","NETCARE")
+        TELE <- c("BLUETEL","TELKOM","MTN","VODACOM")
+        PHAR <- c("ASCENDIS","ASPEN","ADCOCK")
+        OILG <- "MONTAUK"
 
         
                 
@@ -202,7 +218,7 @@ Indexes<-("C-YENZAR|GOLD-R|C-JPYUSD|JSE-INDI|JSE-CONS|C-USDZAR|JSE-TECH|JSE-GOLD
 
 ```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
      
-      lst <- c("GOLD-R","JSE-INDI","JH-ALSI40","JSE-FINI","JSE-GOLD","NIKKEI","JSE-PLAT","JSE-METL","UALSB","JSE-CONS","JSE-COAL","JSE-INDM","JSE-FOOD","JSE-PHAR","JSE-OILG","JSE-HEAL","JSE-BANK","JSE-TECH","JSE-TELE")
+      lst <- c("GOLD-R","JSE-INDI","JH-ALSI40","JSE-FINI","JSE-GOLD","NIKKEI","JSE-PLAT","JSE-METL","UALSB","JSE-CONS","JSE-COAL","JSE-INDM","JSE-FOOD","JSE-PHAR","JSE-RESI","JSE-OILG","JSE-HEAL","JSE-BANK","JSE-TECH","JSE-TELE")
         RSC(lst,"RSC Daily Indexes")   
         
 ```
@@ -246,6 +262,25 @@ Indexes<-("C-YENZAR|GOLD-R|C-JPYUSD|JSE-INDI|JSE-CONS|C-USDZAR|JSE-TECH|JSE-GOLD
 ```{r, fig.width=13,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
         
         fnProffitLoss()
+        
+```
+
+### Index Leaders - Losers
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7,  message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+        leads_cr <- head(to_graph,2)
+        leads_cr <- gsub(".*-","",leads_cr)
+        lose_cr <- tail(to_graph,3)  
+        lose_cr <- gsub(".*-","",lose_cr)
+        ## CumRet Leaders
+                xx <- as.character(unlist(sapply(leads_cr, function(x) paste(eval(parse(text = x))))))
+                CumRet(xx,Sys.Date()-10,paste("Leaders 10day -",leads_cr))
+        ## CumRet Losers
+                xx <- as.character(unlist(sapply(lose_cr, function(x) paste(eval(parse(text = x))))))
+                CumRet(xx,Sys.Date()-10,paste("Losers 10day - ",lose_cr))
+        
+        
         
 ```
 
@@ -297,7 +332,7 @@ Indexes<-("C-YENZAR|GOLD-R|C-JPYUSD|JSE-INDI|JSE-CONS|C-USDZAR|JSE-TECH|JSE-GOLD
       
      
         # Somehere RSC() substitutes - with . ==> need to revert back
-        WeeklyGraph(to)
+        WeeklyGraph(to_graph)
        
         
 ```
