@@ -1,4 +1,7 @@
-CumulativeReturns <- function(dt = "2016-10-01",mylst = instLive, nm = "Live" , pth = "Rplots/") {
+CumulativeReturns <- function(dt = "2017-10-01",mylst = instLive, nm = "Live" , pth = "Rplots/") {
+        
+library(knitr)
+library(kableExtra)
 #*****************************************************************
 # Load historical data
 # Loaded in Daily function        
@@ -54,8 +57,15 @@ templst <- as.data.frame(tail(dp,1))
 templst <- melt(templst)                        #cast long
 templst$value <- round(templst$value,2)
 tor <- templst[order(templst[,2],decreasing = TRUE),]
+
+kable(tor) %>%
+        kable_styling(bootstrap_options = "striped", font_size = 10) %>%
+        scroll_box(width = "1000px", height = "800px")
+
+#return(tor)
 writepath <- paste(file.path("/Users/johnlyons/Documents/Personal/DataScience/R/RPlots/"),nm,".",Sys.Date(),".txt",sep="")
 write.table(tor,writepath,sep="\t", col.names = F, row.names = F, quote = FALSE)
+
 }
 
 
