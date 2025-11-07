@@ -1,5 +1,5 @@
 ---
-title: "Daily Graphs"
+title: "CTS"
 author: "John Lyons"
 output: 
   flexdashboard::flex_dashboard:
@@ -14,6 +14,7 @@ library(dygraphs)
 library(dplyr)
 library(quantmod)
 library(xts)
+library(plotly)
 library(flexdashboard)
 library(readxl)
 library(gplots)
@@ -25,6 +26,8 @@ JSEdat <- JSEdat[,-1]
 JSEdat$Date <- as.Date(JSEdat$Date)
 JSEdat$Name <- gsub("-","_",JSEdat$Name)
 JSEdat$Name <- gsub("_\\$","",JSEdat$Name)
+alldata2 <- unique(subset(JSEdat,JSEdat$Date >= Sys.Date()-20))
+
 
 Trades <- read_excel("/Users/johnlyons/Dropbox/CTS/Trades.xlsx",col_names = TRUE,na = "")
 Trades <- as.data.frame(Trades)
@@ -32,17 +35,16 @@ Trades$Purchase <- as.Date(Trades$Purchase)
 Trades$`Exit Dt` <- as.Date(Trades$`Exit Dt`)
 mylst <- subset(Trades,is.na(Trades$Exit)) 
 instLive <- as.character(sort(mylst[,1]))
-Metals <- c("COPPER","ZINC","NICKEL","BRENT","PALLAD","GOLD_R","GOLD_PM","PLAT","SILV","SILV_R")
-KeyIndixes <- c("JSE_CONS","JSE_INDI","JSE_PLAT","JH_ALSI40","JSE_TECH","JSE_FINI","JSE_BANK","JSE_PHAR","JSE_HEAL","GOLD_R","JSE_GOLD","JSE_COAL","JSE_RESI","JSE_INDM","JSE_METL","C_YENZAR","USALB","SP500","NIKKEI","C_JPYUSD","BRENT")
+Metals <- c("BRENT","COPPER","ZINC","IRONORE","NICKEL","PALLAD","GOLD_R","GOLD_PM","PLAT","SILV","SILV_R")
+Metals1 <- c("BRENT","COPPER","ZINC","NICKEL","PALLAD","GOLD_R","GOLD_PM","PLAT","SILV","SILV_R")
+KeyIndixes <- c("JSE_OILG","JSE_AUTM","JSE_CONS","JSE_INDI","JSE_PLAT","JH_ALSI40","JSE_TECH","JSE_FINI","JSE_BANK","JSE_PHAR","JSE_HEAL","GOLD_R","JSE_GOLD","JSE_COAL","JSE_RESI","JSE_INDM","JSE_METL","USALB","SP500","NIKKEI")
 indi <- c("JSE_INDI","NETCARE","LIFEHC","STEINHOFF","PICKNPAY","WOOLIES","TRUWTHS","RICHEMONT","MTN","MEDCLIN","CLICKS","VODACOM","BIDVEST","TFG","MRPRICE","IMPERIAL","SPAR","SHOPRIT","REMGRO","BIDCORP","ASPEN","TIGBRANDS","BATS","NASPERSN")
 Cons <- c("JSE_CONS","ADVTECH","BIDCORP","CHOPPIES","CITYLDG","CLICKS","CURRO","CASHBIL","FAMBRANDS","HOLDSPORT","ITLTILE",
           "MRPRICE","MASSMART","NASPERSN","PICKNPAY","SHOPRIT","SPAR","SUNINT","TFG","TRUWTHS","WOOLIES")
 Curr <- c("C_EURZAR","C_GBPZAR","C_USDZAR","C_NZDZAR","C_ZARJPY","C_USDAUD","C_USDCAD","C_USDCHF","C_USDGBP","C_USDEUR","C_USDJPY","C_USDEUR","C_USDCNY","C_BTCUSD","C_BTCZAR")
-Watchlist <- c("ANGLO","ANGLOPLAT","ARM","DBX_WORLD","SASOL","SOUTH32","ASSORE","BILLITON","ANGGOLD","HARMONY","CAPCO","REINET","TAWANA","GFIELDS","LONMIN","NORTHAM")
-
-
+Watchlist<-c("ARCMITTAL","ANGGOLD","ANGLO","ANGLOPLAT","ASCENDIS","BATS","RMBH","HARMONY","ARM","BILLITON","CAPITEC","DRDGOLD","EXXARO","GFIELDS","GROUP-5","IMPLATS","KUMBAIO","LONMIN","NEWPALL","NEWSLV","NORTHAM","RAUBEX","SIBANYE","SOUTH32","TELKOM")
 ### Build ea of the xts datasets ###
-mylist <- c(instLive,KeyIndixes,Metals,indi,Cons,Curr,Watchlist)
+mylist <- c(instLive,KeyIndixes,Metals,indi,Cons,Curr)
 
 for(i in mylist) {
         y <- subset(JSEdat,JSEdat$Name == i)
@@ -58,23 +60,64 @@ for(i in mylist) {
 Live {data-icon="fa-area-chart"}
 ====================================================================
 
-Inputs {.sidebar data-width=200}
+Inputs {.sidebar data-width=130}
 --------------------------------------
 
 ```{r}
-radioButtons(inputId = "indicator",
-             label = "Select instrument", 
-             choices = instLive)
 dateInput(inputId = "dtChoice1",
            label = "Choose a start date ",
-           value = "2016-11-01")
+           value = "2018-02-01")
+
+selectInput(inputId = "indicator",
+             label = "Select instrument", 
+             selectize = FALSE,
+             choices = sort(instLive))
+
 
 ```
 
-
-Column {data-width=500}
+Column 
 -------------------------------------
-### Weekly 
+    
+### Daily Chart
+
+```{r}
+data <- reactive({
+        eval(parse(text = input$indicator)) 
+})
+        
+renderPlot({    
+    chartSeries(data(), 
+                subset = paste(Sys.Date()-200,"::",sep=""),
+                #subset = paste(input$dtChoice1,"::",sep=""),
+                name = input$indicator,theme = "white", 
+                up.col = "blue",dn.col="red",
+                 TA="addOBV(); addSMA(n = c(21,50,100), col = c('blue','red','black'));addMACD();addVo()")   
+  })
+```
+
+Column {.tabset}
+-------------------------------------
+    
+### Weekly Chart
+
+```{r}
+data <- reactive({
+        eval(parse(text = input$indicator)) 
+})
+        
+renderPlot({    
+    chartSeries(to.weekly(data()), 
+                subset = ("2016-01::"),
+                #subset = paste(input$dtChoice1,"::",sep=""),
+                name = input$indicator,theme = "white", up.col = "blue",
+                dn.col = "red",TA="addOBV();addSMA(n=24);addMACD();addVo();addBBands()")
+  })
+```
+
+
+
+### Weekly DyGraph
 
 ```{r}
 dataW1 <- reactive({
@@ -98,36 +141,20 @@ renderDygraph({
   })
 ```
 
-
-
-Column {data-width=500}
--------------------------------------
-    
-### ChartSeries
-
-```{r}
-data <- reactive({
-        eval(parse(text = input$indicator)) 
-})
-        
-renderPlot({    
-    chartSeries(data(), subset = paste(input$dtChoice1,"::",sep=""),name = input$indicator,theme = "white", up.col = "blue",dn.col = "red",TA="addOBV();addSMA(n=24);addMACD();addVo();addBBands()")
-  })
-```
-
 KeyIndexes {data-icon="fa-area-chart"}
 ====================================================================
 Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
-radioButtons(inputId = "index",
-             label = "Select instrument", 
-             choices = KeyIndixes)
+
 dateInput(inputId = "dtChoice2",
            label = "Choose a start date ",
-           value = "2016-11-01")
-
+           value = "2018-02-01")
+selectInput(inputId = "index",
+             label = "Select instrument", 
+             selectize = FALSE,
+             choices = sort(KeyIndixes))
 ```
 
 
@@ -147,13 +174,12 @@ renderDygraph({
   })
 ```
 
-Column {data-width=400}
--------------------------------------
+
 
 ```{r}
 ### Calc cumulative returns ###
-alldata2 <- 
-        unique(subset(JSEdat,JSEdat$Date >= Sys.Date()-20))
+#alldata2 <- 
+#        unique(subset(JSEdat,JSEdat$Date >= Sys.Date()-20))
 
 for(i in KeyIndixes) {
         y <- subset(alldata2,alldata2$Name == i)
@@ -182,11 +208,12 @@ tor <- templst[order(templst[,2],decreasing = TRUE),]
 
 ```
 
-    
+Column {.tabset,data-width=300}
+-------------------------------------
+
 ### CumulativeReturns
 
 ```{r}
-
 renderPlot({   
     
     plot(x = zoo.dp, ylab = "Cumulative Return %age", main = "KeyIndexes", col = tsRainbow, screens = 1,lwd = 2.5)
@@ -194,6 +221,7 @@ renderPlot({
     abline(h=0)
     #legend("topleft",legend = KeyIndixes,inset=0.01,cex = 0.9,lty=c(1),lwd=c(3),bg="grey96",col = tsRainbow ) 
   })
+
 ```
 
 Column {data-width=200}
@@ -208,18 +236,20 @@ renderTable({
   })
 ```
 
-Metals {data-icon="fa-area-chart"}
+Commodities {data-icon="fa-area-chart"}
 ====================================================================
 Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
-radioButtons(inputId = "metals",
-             label = "Select instrument", 
-             choices = Metals)
+
 dateInput(inputId = "dtChoice3",
            label = "Choose a start date ",
-           value = "2016-11-01")
+           value = "2018-02-01")
+selectInput(inputId = "metals",
+             label = "Select instrument", 
+             selectize = FALSE,
+             choices = sort(Metals))
 
 ```
 
@@ -240,8 +270,47 @@ renderDygraph({
   })
 ```
 
-Column {data-width=600}
+Column {.tabset}
 -------------------------------------
+### ChartSeries Comparative - Commodities
+
+```{r}
+
+for(i in Metals1) {
+        y <- subset(alldata2,alldata2$Name == i)
+        y <- y[,c("Date","Close")]
+        y <- aggregate(Close ~ Date, y, mean)   # get rid of dups and multiple entries
+        zz <- xts(y[,2],order.by = y[,1])        # convert to xts
+        assign(i,zz)
+        }
+mm <- sapply(Metals1,as.name)                     # assign string from mylst names to xts sets
+
+myxts <- do.call(merge,sapply(Metals1,as.name))   # build single xts frame of instr closing prices
+day1 <- as.numeric(myxts[1,])                   #get closing price of first record
+dpMet <- head(myxts,0)                             # price on day1 of set
+for(i in 1:ncol(myxts)) {                       # build xts frame of instr and %age moves
+       pcage<- ((myxts[,i] - day1[i])  / day1[i] )*100         
+        dpMet  <- cbind(dpMet,pcage)
+        }
+
+zoo.dpMet <- as.zoo(dpMet)                    #convert to zoo to keep column names
+# Set a color scheme:
+tsRainbow <- rainbow(ncol(zoo.dpMet))
+templst <- as.data.frame(tail(dpMet,1))
+templst <- melt(templst)                        #cast long
+templst$value <- round(templst$value,2)
+torMet <- templst[order(templst[,2],decreasing = TRUE),]
+
+renderPlot({   
+    
+    plot(x = zoo.dpMet, ylab = "Cumulative Return %age", main = "Commodities", col = tsRainbow, screens = 1,lwd = 2.5)
+    grid(NULL,NULL)
+    abline(h=0)
+    legend("bottomleft",legend = Metals1,inset=0.01,cex = 0.9,lty=c(1),lwd=c(3),bg="grey96",col = tsRainbow ) 
+  })
+
+```
+
     
 ### ChartSeries
 
@@ -257,18 +326,32 @@ renderPlot({
   })
 ```
 
+Column {data-width=200}
+-------------------------------------
+    
+### TableOfReturns
+
+```{r}
+
+renderTable({   
+    torMet
+  })
+```
+
 Indi {data-icon="fa-area-chart"}
 ====================================================================
 Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
-radioButtons(inputId = "indi",
-             label = "Select instrument", 
-             choices = indi)
+
 dateInput(inputId = "dtChoice4",
            label = "Choose a start date ",
-           value = "2016-11-01")
+           value = "2018-02-01")
+selectInput(inputId = "indi",
+             label = "Select instrument", 
+             selectize = FALSE,
+             choices = sort(indi))
 
 ```
 
@@ -312,12 +395,14 @@ Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
-radioButtons(inputId = "cons",
-             label = "Select instrument", 
-             choices = Cons)
+
 dateInput(inputId = "dtChoice5",
            label = "Choose a start date ",
-           value = "2016-11-01")
+           value = "2018-02-01")
+selectInput(inputId = "cons",
+             label = "Select instrument", 
+             selectize = FALSE,
+             choices = sort(Cons))
 
 ```
 
@@ -361,12 +446,14 @@ Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
-radioButtons(inputId = "curr",
-             label = "Select instrument", 
-             choices = Curr)
+
 dateInput(inputId = "dtChoice6",
            label = "Choose a start date ",
-           value = "2016-11-01")
+           value = "2018-02-01")
+selectInput(inputId = "curr",
+             label = "Select instrument", 
+             selectize = FALSE,
+             choices = sort(Curr))
 
 ```
 
@@ -409,16 +496,55 @@ Inputs {.sidebar data-width=200}
 --------------------------------------
 
 ```{r}
-radioButtons(inputId = "wl",
-             label = "Select instrument", 
-             choices = Watchlist)
+
 dateInput(inputId = "dtChoice7",
            label = "Choose a start date ",
-           value = "2016-11-01")
+           value = "2018-02-01")
+selectInput(inputId = "wl",
+             label = "Select instrument", 
+             selectize = FALSE,
+             choices = sort(Watchlist))
 
 ```
 
-Column {data-width=500}
+
+Column {.tabset}
+-------------------------------------
+    
+### ChartSeries
+
+```{r}
+dataWal <- reactive({
+        eval(parse(text = input$wl)) 
+})
+        
+renderPlot({    
+    chartSeries(dataWal(), subset = paste(input$dtChoice7,"::",sep=""),name = input$wl,theme = "white", up.col = "blue",dn.col = "red",
+               TA="addOBV(); addSMA(n = c(21,50,100), col = c('blue','red','black'));addMACD();addVo()")          
+             
+  })
+```
+
+
+    
+### Weekly Chart
+
+```{r}
+dataWal <- reactive({
+        eval(parse(text = input$wl)) 
+})
+        
+renderPlot({    
+    chartSeries(to.weekly(dataWal()), 
+                subset = ("2016-01::"),
+                #subset = paste(input$dtChoice1,"::",sep=""),
+                name = input$wl,theme = "white", up.col = "blue",
+                dn.col = "red",
+                TA="addOBV(); addSMA(n = c(5,21,50), col = c('blue','red','black'));addMACD();addVo()")  
+  })
+```
+
+Column {data-width=400}
 -------------------------------------
 ### Weekly 
 
@@ -434,22 +560,6 @@ renderDygraph({
   })
 ```
 
-Column {data-width=500}
--------------------------------------
-    
-### ChartSeries
-
-```{r}
-dataWal <- reactive({
-        eval(parse(text = input$wl)) 
-})
-        
-renderPlot({    
-    chartSeries(dataWal(), subset = paste(input$dtChoice7,"::",sep=""),name = input$wl,theme = "white", up.col = "blue",dn.col = "red",TA="addOBV();addSMA(n=24);addMACD();addVo();addBBands()")             
-             
-  })
-```
-
 
 Heatmap {data-icon="fa-table"}
 ====================================================================
@@ -462,7 +572,8 @@ Heatmap {data-icon="fa-table"}
 #})
 #render({
 #        filter(JSEdat,JSEdat$Name == input$indicator)   
-#        options = list(pageLength = 50)})    
+#        options = list(pageLength = 50)}) 
+
 ```
 
 

@@ -1,0 +1,146 @@
+---
+title: "CTS"
+author: "John Lyons"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r global, include=FALSE}
+# load data in 'global' chunk so it can be shared by all users of the dashboard
+library(dygraphs)
+library(dplyr)
+library(quantmod)
+library(xts)
+library(plotly)
+library(flexdashboard)
+library(readxl)
+library(gplots)
+library(RColorBrewer)
+library(reshape2)
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/fnCumRet.R")
+JSEdat <- read.csv("/Users/johnlyons/Documents/Personal/DataScience/R/JSEdat.csv", header = TRUE)
+JSEdat <- JSEdat[,-1]
+JSEdat$Date <- as.Date(JSEdat$Date)
+JSEdat$Name <- gsub("-","_",JSEdat$Name)
+JSEdat$Name <- gsub("_\\$","",JSEdat$Name)
+alldata2 <- unique(subset(JSEdat,JSEdat$Date >= Sys.Date()-20))
+
+
+Trades <- read_excel("/Users/johnlyons/Dropbox/CTS/Trades.xlsx",col_names = TRUE,na = "")
+Trades <- as.data.frame(Trades)
+Trades$Purchase <- as.Date(Trades$Purchase)
+Trades$`Exit Dt` <- as.Date(Trades$`Exit Dt`)
+mylst <- subset(Trades,is.na(Trades$Exit)) 
+instLive <- as.character(sort(mylst[,1]))
+Metals <- c("BRENT","COPPER","ZINC","IRONORE","NICKEL","PALLAD","GOLD_R","GOLD_PM","PLAT","SILV","SILV_R")
+Metals1 <- c("BRENT","COPPER","ZINC","NICKEL","PALLAD","GOLD_R","GOLD_PM","PLAT","SILV","SILV_R")
+KeyIndixes <- c("JSE_OILG","JSE_AUTM","JSE_CONS","JSE_INDI","JSE_PLAT","JH_ALSI40","JSE_TECH","JSE_FINI","JSE_BANK","JSE_PHAR","JSE_HEAL","GOLD_R","JSE_GOLD","JSE_COAL","JSE_RESI","JSE_INDM","JSE_METL","USALB","SP500","NIKKEI")
+indi <- c("JSE_INDI","NETCARE","LIFEHC","STEINHOFF","PICKNPAY","WOOLIES","TRUWTHS","RICHEMONT","MTN","MEDCLIN","CLICKS","VODACOM","BIDVEST","TFG","MRPRICE","IMPERIAL","SPAR","SHOPRIT","REMGRO","BIDCORP","ASPEN","TIGBRANDS","BATS","NASPERSN")
+Cons <- c("JSE_CONS","ADVTECH","BIDCORP","CHOPPIES","CITYLDG","CLICKS","CURRO","CASHBIL","FAMBRANDS","HOLDSPORT","ITLTILE",
+          "MRPRICE","MASSMART","NASPERSN","PICKNPAY","SHOPRIT","SPAR","SUNINT","TFG","TRUWTHS","WOOLIES")
+Curr <- c("C_EURZAR","C_GBPZAR","C_USDZAR","C_NZDZAR","C_ZARJPY","C_USDAUD","C_USDCAD","C_USDCHF","C_USDGBP","C_USDEUR","C_USDJPY","C_USDEUR","C_USDCNY","C_BTCUSD","C_BTCZAR")
+Watchlist<-c("ADVHLTH","ANGGOLD","ANGLO","ANGLOPLAT","RMBH","HARMONY","ADCORP","ARM","BILLITON","DRDGOLD","EXXARO","FINBOND","GFIELDS","GOODERSON","GRANPRADE","IMPLATS","LABAT","LONMIN","MIXTEL","MONTAUK","MUSTEK","NEWPALL","NEWSLV","NORTHAM","RHODES","SIBANYE","SIRIUS","SOUTH32","STEFSTOCK","STELLAR","STENPROP","SYGNIA","TRUSTCO","VALUE","VUNANI","WESCOAL")
+Selection <- c("Metals","KeyIndexes","indi","Cons","Curr","Watchlist")
+
+### Build ea of the xts datasets ###
+mylist <- c(instLive,KeyIndixes,Metals,indi,Cons,Curr,Watchlist)
+
+for(i in mylist) {
+        y <- subset(JSEdat,JSEdat$Name == i)
+        z <- xts(y[,3:7],order.by = y[,2])        # convert to xts
+        zw <- to.period(z,"weeks")
+        #z <- tail(z,90)                         # last 90 days
+        assign(i,z)                              #Daily data
+        assign(paste(i,"W",sep=""),zw)           #Weekly data
+}
+
+```
+
+
+
+KeyIndexes {data-icon="fa-area-chart"}
+====================================================================
+Inputs {.sidebar data-width=200}
+--------------------------------------
+
+```{r}
+
+dateInput(inputId = "dtChoice2",
+           label = "Choose a start date ",
+           value = "2018-02-01")
+selectInput(inputId = "index",
+             label = "Select instrument", 
+             selectize = FALSE,
+             choices = sort(KeyIndixes))
+```
+
+
+Column {data-width=400}
+-------------------------------------
+### Weekly 
+
+```{r}
+dataInd <- reactive({
+        eval(parse(text = paste(input$index,"W",sep="")))
+})
+
+renderDygraph({
+    dataInd()[,2:4][paste(input$dtChoice2,"::",sep="")] %>%        
+    dygraph(dataInd(),main = as.character(input$index)) %>%
+    dySeries(c("z.Low","z.Close","z.High")) 
+  })
+```
+
+Cumulative Returns {data-icon="fa-area-chart"}
+====================================================================
+
+Inputs {.sidebar data-width=200}
+--------------------------------------
+
+```{r}
+
+selectInput(inputId = "llst",
+             label = "Select list", 
+             selectize = FALSE,
+             choices = sort(Selection))
+```
+
+
+
+Column {.tabset,data-width=300}
+-------------------------------------
+
+### CumulativeReturns
+
+```{r}
+
+reactive({
+        fnCumRet("2018-04-01",input$llst)        
+})
+
+tsRainbow <- rainbow(ncol(zoo.dp))
+
+renderPlot({   
+    
+    plot(x = zoo.dp, ylab = "Cumulative Return %age", main = "KeyIndexes", col = tsRainbow, screens = 1,lwd = 2.5)
+    grid(NULL,NULL)
+    abline(h=0)
+    #legend("topleft",legend = KeyIndixes,inset=0.01,cex = 0.9,lty=c(1),lwd=c(3),bg="grey96",col = tsRainbow ) 
+  })
+
+```
+
+Column {data-width=200}
+-------------------------------------
+    
+### TableOfReturns
+
+```{r}
+
+renderTable({   
+    tor
+  })
+```

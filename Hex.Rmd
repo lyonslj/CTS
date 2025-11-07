@@ -1,0 +1,265 @@
+---
+output: html_document
+fig_width: 23
+fig.align: "center"
+
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(dygraphs)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(quantmod)
+library(xts)
+library(flexdashboard)
+library(readxl)
+library(openxlsx)
+library(gplots)
+library(RColorBrewer)
+library(reshape2)
+library(jsonlite)
+library(tidyr)
+library(ggplot2)
+library(gridExtra)
+library(data.table)
+
+
+  y <- fromJSON(paste("https://hexdailystats.com/fulldata",sep=""))
+        z <- y
+        y$date <- substr(y$date, 1,10)
+        y$date <- as.Date(y$date, format = "%Y-%m-%d")
+        
+        x <- y
+        y <- y[y$currentDay >= 358,]
+
+
+       
+        
+        #Price
+        g_price <- ggplot(y, aes(x=date,y=priceUV2UV3)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "Hex price" ,caption = "Hex date")
+        
+        
+        
+        ##
+        #Staked%
+        g_stakedp <- ggplot(y, aes(x=date,y=stakedHEXPercent)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "Hex Staked %age" ,caption = "Hex date")
+        
+        ##
+        #Staked
+        g_staked <- ggplot(y, aes(x=date,y=stakedHEX)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "Hex Staked" ,caption = "Hex date")+
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        ##
+        #Staker count
+        g_staker_count <- ggplot(y, aes(x=date,y=currentStakerCount)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "Staker Count" ,caption = "Hex date")+
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        
+        ##
+        #Circulating Supply
+        g_circ_supply <- ggplot(x, aes(x=date,y=circulatingHEX)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "Circulating Hex" ,caption = "Hex date") +
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        ##
+        #dailyPayoutHEX
+        g_dailyPayoutHEX <- ggplot(x, aes(x=date,y=dailyPayoutHEX)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "dailyPayoutHEX" ,caption = "Hex date") +
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        
+        #Minted Inflation
+        g_inflcum <- ggplot(x, aes(x=date,y=rev(cumsum(dailyMintedInflationTotal)))) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "Cum Minted Inflation" ,caption = "Hex date") +
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        #Minted Inflation
+        g_infl <- ggplot(y[y$currentDay >= 410,], aes(x=date,y=dailyMintedInflationTotal)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "Minted Inflation" ,caption = "Hex date") +
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        #totalHex
+        g_totH <- ggplot(x, aes(x=date,y=totalHEX)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "Total HEX" ,caption = "Hex date") +
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        #dailyPayoutHEX
+        g_daily_pay <- ggplot(x, aes(x=date,y=dailyPayoutHEX)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "HEX dailyPayout" ,caption = "Hex date") +
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        
+        #penalties
+        g_penalties <- ggplot(x, aes(x=date,y=penaltiesHEX)) +
+                geom_line(stat="identity") +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title =  "HEX penalties" ,caption = "Hex date") +
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        #MstakedHEXGA
+        g_stakedGA <- ggplot(y, aes(x=date,y=stakedHEXGA)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "StakedHexGA" ,caption = "Hex date") +
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        
+        #SupplyChange
+        g_supplyChange <- ggplot(y[y$currentDay >= 410,], aes(x=date,y=circulatingSupplyChange)) +
+                geom_line(stat="identity") +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "circulatingSupplyChange" ,caption = "Hex date") +
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        #Liquidity
+        p_eth <- ggplot(y[y$currentDay >= 410,], aes(x=date)) +
+              #  geom_line(aes(y=liquidityUV2UV3_ETH)) +
+                geom_line(aes(y=liquidityUV3_ETH, col="EthV3")) +
+                geom_line(aes(y=liquidityUV2_ETH, col="EthV2")) +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(title = "ETH liquidity" ,caption = "Hex date")
+        
+        #Liquidity
+        p_hex <- ggplot(y[y$currentDay >= 410,], aes(x=date)) +
+                geom_line(aes(y=liquidityUV3_HEX, col="HexV3")) +
+                geom_line(aes(y=liquidityUV2_HEXETH, col="HexEthV2")) +
+                geom_line(aes(y=liquidityUV2_HEXUSDC, col="HexUsdcV2")) +
+                #geom_text(aes(label=(dev_by_country$Devices)), size=2, color= "black",position=position_stack(0.5)) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(title = "HEX liquidity" ,caption = "Hex date")+
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        
+        #Liquidity
+        options(scipen = 999) # disable scientific notation
+        p_usdc <- ggplot(y[y$currentDay >= 410,], aes(x=date)) +
+                geom_line(aes(y=liquidityUV3_USDC, col="V3")) +
+                geom_line(aes(y=liquidityUV2_USDC, col="V2")) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(x=NULL,y=NULL,title = "Uniswap USDC liquidity" ,caption = "Source: https://hexdailystats.com/") + 
+                scale_y_continuous(labels = function(x) format(x, big.mark = ",",
+                                                       scientific = FALSE))
+        
+        
+        
+
+       p <- ggplot(y[y$currentDay >= 410,], aes(x=date)) +
+                geom_line(aes(y=stakedHEXGA, col="V3")) +
+              #  geom_line(aes(y=liquidityUV2_USDC, col="V2")) +
+                theme_light() +
+                theme(axis.text.x = element_text(angle=90)) +
+                labs(title = "USDC liquidity" ,caption = "Hex date")
+```
+
+## Hex Analysis   {.tabset .tabset-fade .tabset-pills}
+
+### Data
+
+#### Price to Staking to Supply
+
+```{r, fig.width=28,  fig.height= 20, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+        
+        
+        grid.arrange(g_price, g_circ_supply, 
+                     g_stakedp, g_inflcum, g_stakedGA, g_totH, 
+                     g_staked, g_supplyChange,g_dailyPayoutHEX, 
+                     g_penalties, g_infl,g_staker_count,
+                     ncol=2)
+
+ 
+
+        
+```
+
+### Liquidity
+
+#### Hex Eth Usdc
+
+```{r, fig.width=10,  fig.height= 4, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+  
+        p_hex
+        p_eth
+        p_usdc
+        
+
+        
+```

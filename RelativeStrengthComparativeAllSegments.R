@@ -13,7 +13,7 @@ source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
         ##                       get crypts                          #
         ##############################################################
         
-        crypts <- c("ETH","BTC")
+        crypts <- c("ETH","BTC","HEX")
         for(i in crypts) {
                 y <- fromJSON(paste("https://min-api.cryptocompare.com/data/histoday?fsym=",i,"&tsym=USD&limit=200&aggregate=1",sep=""))
                 y <- y$Data

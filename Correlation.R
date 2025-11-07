@@ -1,5 +1,6 @@
 Correlation <- function(lst = MtlsIndexes) {
 lst <- append(MtlsIndexes,"SAVI")
+lst <- append(MtlsIndexes,"IRONORE")
 y <- 0
 days <- c(360,180,90,60,30,10,5)
 mergecor <- NULL

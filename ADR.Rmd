@@ -1,0 +1,116 @@
+---
+title: "ADR Analysis"
+output: slidy_presentation
+---
+
+```{r setup,include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+
+library(tidyquant)
+library(ggplot2)
+library(plotly)
+library(tidyquant)
+#
+wrk_dat <- bigdf[bigdf$Exchange == "JSE",]
+        wrk_dat <- wrk_dat[,c(4,1:3,5:9)]
+        wrk_dat$Date <- as.Date(as.character(wrk_dat$Date),format="%Y%m%d")
+        wrk_dat <- wrk_dat[complete.cases(wrk_dat) & wrk_dat$Date >= "2018-08-01",]
+        
+
+
+daily_returns <- wrk_dat %>% group_by(Name) %>%
+        tq_transmute(select = Close,
+                     mutate_fun = periodReturn,
+                     period     = "daily",
+                     type       = "arithmetic")
+        daily_returns$signal <- ifelse(daily_returns$daily.returns > 0, "positive", 
+                                       ifelse(daily_returns$daily.returns < 0, "negative",0))
+
+daily_stats <- daily_returns %>%
+        group_by(Date, signal) %>%
+        summarise(count = n())
+       
+
+daily_stats_anal <- daily_stats[daily_stats$signal !=0,]
+        daily_stats_anal$count <- ifelse(daily_stats_anal$signal == "negative", daily_stats_anal$count*-1, daily_stats_anal$count)
+
+daily_stats_anal_g <- daily_stats_anal %>%
+        group_by(Date) %>%
+        summarise(nett = sum(count)) %>%
+        mutate(effect = ifelse(nett >= 0, "postive", "negative"))
+
+ndG <- ggplot(data=daily_stats_anal_g[daily_stats_anal_g$Date>Sys.Date()-90,], aes(x=Date, y=nett)) +
+        geom_bar(stat="identity", aes(fill = effect)) +
+        theme_light() +
+        theme(strip.text.y = element_text(angle=0),
+              axis.text = element_text( size = 8 )) +
+            geom_hline(yintercept = 0, color = "black") +
+        labs(x=NULL,y=NULL, title = "2019 Daily Movers",
+             subtitle = paste(nrow(TradesOld), "Trades", "Avg Return", round(mean(TradesOld$PL),0), sep=" "))
+
+
+
+
+###############
+
+#View(daily_stats_anal_g)
+daily_stats_anal_g$dt_Mnth <- daily_stats_anal_g$Date
+daily_stats_anal_g$dt_Mnth <- format(daily_stats_anal_g$dt_Mnth,"%b-%Y")
+daily_stats_anal_g$dt_Wk <- daily_stats_anal_g$Date
+daily_stats_anal_g$dt_Wk <- format(daily_stats_anal_g$dt_Wk,"%U")
+
+
+BoxMnG  <- g <- ggplot(daily_stats_anal_g, aes(dt_Mnth,nett)) +
+        geom_boxplot(varwidth=T, fill="plum") + 
+        geom_hline(yintercept = 0, color = "black", alpha = 0.5) +
+        labs(x=NULL,y=NULL, title = "Monthly Advance Decliners",
+             subtitle = paste(nrow(TradesOld), "Trades:", "Avg Return", round(mean(TradesOld$PL),0),
+                              "Median Return", round(median(TradesOld$PL),0),sep=" "))
+#####
+
+BoxWkG  <- g <- ggplot(daily_stats_anal_g[daily_stats_anal_g$Date >= Sys.Date()-90,], aes(dt_Wk,nett)) +
+        geom_boxplot(varwidth=T, fill="plum") + 
+        geom_hline(yintercept = 0, color = "black", alpha = 0.5) +
+        labs(x=NULL,y=NULL, title = "Weekly Advance Decliners",
+             subtitle = paste(nrow(TradesOld), "Trades:", "Avg Return", round(mean(TradesOld$PL),0),
+                              "Median Return", round(median(TradesOld$PL),0),sep=" "))
+
+
+##
+
+adr_work <- spread(daily_stats_anal,signal, count)
+
+
+adr_work$adr <- adr_work$positive / -adr_work$negative
+
+adr_work$adr <- ifelse(adr_work$positive > -adr_work$negative,
+                adr_work$positive / -adr_work$negative,
+                adr_work$negative / adr_work$positive)
+adr_work$cum_adr <- cummean(adr_work$adr)
+
+AdrG  <- g <- ggplot(adr_work[adr_work$Date >= Sys.Date()-120,], aes(x=Date, y=adr)) +
+        geom_line( color = "blue") + 
+        scale_y_log10() +
+        geom_hline(yintercept = 1, color = "red", alpha = 0.5) +
+        geom_hline(yintercept = 0.66, color = "orange", alpha = 0.5, linetype = "dotted") +
+        geom_hline(yintercept = 1.5, color = "green", alpha = 0.5, linetype = "dotted") +
+        theme_dark() +
+        #geom_line(aes(x=Date, y=cum_adr), color = "green", alpha = 0.5) +
+        labs(x=NULL,y=NULL, title = "Daily ADR",
+             subtitle = paste(nrow(TradesOld), "Trades:", "Avg Return", round(mean(TradesOld$PL),0),
+                              "Median Return", round(median(TradesOld$PL),0),sep=" "))
+
+```
+
+## ADR Analysis
+
+```{r, fig.width=13, message= FALSE, warning=FALSE, echo = FALSE}
+
+ggplotly(ndG)
+ggplotly(BoxWkG)
+ggplotly(BoxMnG)
+ggplotly(AdrG)
+
+```
+

@@ -19,10 +19,29 @@ for(i in mylst) {
         assign(i,z)
         }
 mm <- sapply(mylst,as.name)                     # assign string from mylst names to xts sets
+myxts <- do.call(merge,sapply(mylst,as.name))   # build single xts frame of instr closing prices
+#*********************************************
+#Dygraph
+#*********************************************
+
+
+dateWindow <- c("2020-02-01", "2020-05-01")
+
+dygraph(myxts, main = "Percent", group = "stock") %>%
+        dyRebase(percent = TRUE) %>%
+        dyRangeSelector(dateWindow = dateWindow) %>%
+        dyOptions(colors = RColorBrewer::brewer.pal(20, "Spectral")) %>%
+        dyLimit(0, color = "black") %>% 
+        dyHighlight(highlightSeriesOpts = list(strokeWidth = 3)) %>%
+        dyLegend(show = "onmouseover" ,hideOnMouseOut = TRUE) %>%
+        dyLegend(width = 600)
+
 #*********************************************
 #merge all closing prices of mylist into myxts
 #*********************************************
-myxts <- do.call(merge,sapply(mylst,as.name))   # build single xts frame of instr closing prices
+
+
+
 day1 <- as.numeric(myxts[1,])                   #get closing price of first record
 dp <- head(myxts,0)                             # price on day1 of set
 for(i in 1:ncol(myxts)) {                       # build xts frame of instr and %age moves
@@ -40,7 +59,7 @@ plot(x = zoo.dp, ylab = "Cumulative Return %age", main = nm, col = tsRainbow, sc
 grid(NULL,NULL)
 abline(h=0)
 legend("topleft",legend = mylst,inset=.01,cex = 0.7,lty=c(1,5),lwd=c(3,3),bg="grey96",col = tsRainbow ) 
-"#*********************************************"
+#*********************************************"
 #            Write graph to file               *
 #*********************************************
 mypath <- paste(file.path("/Users/johnlyons/Documents/Personal/DataScience/R/"),pth,nm,".png",sep="")

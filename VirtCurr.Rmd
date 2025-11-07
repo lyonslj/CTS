@@ -1,0 +1,208 @@
+---
+title: "Virtual Currencies"
+author: "John Lyons"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r global, include=FALSE}
+# load data in 'global' chunk so it can be shared by all users of the dashboard
+library(dygraphs)
+library(dplyr)
+library(quantmod)
+library(xts)
+library(flexdashboard)
+library(readxl)
+library(gplots)
+library(RColorBrewer)
+library(reshape2)
+library(jsonlite)
+
+mylst <- c("XPM","ZRX","LSK","BCH","ARDR","BTS","ETH","EOS","GRIN","LTC","MANA","SYS","XRP","ETC","XEM","REP","ZEC","NXT","DOGE","BCN","XLM","DGB","STRAT","SC","FCT")
+mylstc <- as.character(sapply(mylst, function(x) paste(x,"c",sep="")))  # use a function to append a c
+BTC <- fromJSON("https://min-api.cryptocompare.com/data/histoday?fsym=BTC&tsym=USD&limit=200&aggregate=1")
+#BTC.ZAR <- fromJSON("https://min-api.cryptocompare.com/data/histoday?fsym=BTC&tsym=ZAR&limit=200&aggregate=1")
+
+
+BTC <- BTC$Data
+BTC$time <- strptime("1970-01-01", "%Y-%m-%d", tz="GMT") + BTC$time
+BTC <- xts(BTC[,2:6],order.by = BTC[,1])
+
+fnBtcZar <- function() {
+        BTC.ZAR <- fromJSON("https://min-api.cryptocompare.com/data/histoday?fsym=BTC&tsym=ZAR&limit=200&aggregate=1")
+        BTC.ZAR <- BTC.ZAR$Data
+        BTC.ZAR$time <- strptime("1970-01-01", "%Y-%m-%d", tz="GMT") + BTC.ZAR$time
+        BTC.ZAR <- xts(BTC.ZAR[,2:6],order.by = BTC.ZAR[,1])
+}
+
+for(i in mylst) {
+        y <- fromJSON(paste("https://min-api.cryptocompare.com/data/histoday?fsym=",i,"&tsym=BTC&limit=200&aggregate=1",sep=""))
+        y <- y$Data
+        y$time <- strptime("1970-01-01", "%Y-%m-%d", tz="GMT") + y$time
+        z <- xts(y[,2:6],order.by = y[,1])        # convert to xts
+        assign(i,z)
+}
+
+###   xts set of only closing prices - mylstc
+for(i in mylst) {
+        y <- eval(parse(text = i))
+        z <- y[,1]
+        #z <- subset(y, select = close)
+        assign(paste(i,"c",sep=""),z)
+        }       
+
+### Calcs for Cumulative returns on BTCc set
+
+myxts <- do.call(merge,sapply(mylstc,as.name))  
+names(myxts) <- mylstc
+#filt_myxts <- myxts["2018-04::"]
+filt_myxts <- myxts[paste(Sys.Date()-21,"::",sep="")]
+day1 <- as.numeric(filt_myxts[1,])                   #get closing price of first record
+dp <- head(filt_myxts,0)                             # price on day1 of set
+for(i in 1:ncol(filt_myxts)) {                       # build xts frame of instr and %age moves
+        pcage<- ((filt_myxts[,i] - day1[i])  / day1[i] )*100         
+        dp  <- cbind(dp,pcage)
+}
+        ### Table data
+        templst <- as.data.frame(tail(dp,1))
+        templst <- melt(templst)                        #cast long
+        templst$value <- round(templst$value,2)
+        tor <- templst[order(templst[,2],decreasing = TRUE),]
+        # Set a color scheme:
+        zoo.dp <- as.zoo(dp) 
+        tsRainbow <- rainbow(ncol(zoo.dp))
+
+### Final table of Pcage returns
+#
+VcTrds <- read.csv("/Users/johnlyons/Downloads/tradeHistory.csv", header = TRUE,,stringsAsFactors = FALSE)
+VcTrds <- tbl_df(VcTrds)
+nms <- c("TrdDt","Market","Category","Type","Price","Amount","Total","Fee","OrderNo","Base","Quote")
+names(VcTrds) <- nms
+VcTrds$TrdDt <- as.Date(as.character(VcTrds$TrdDt)) 
+df1 <- VcTrds %>%
+          group_by(TrdDt,OrderNo, Market, Type, Price) %>%
+          arrange(TrdDt) %>%
+          summarise(Quant = sum(Quote))
+
+prc <- fromJSON("https://min-api.cryptocompare.com/data/pricemulti?fsyms=XPM,ZRX,LSK,BCH,ARDR,BTS,BTC,LTC,ETC,ETH,XEM,XRP,NXT,DOGE,XLM,ZEC,BCN,DGB,STRAT,XBC,XVC,GRM,SC&tsyms=USD")
+prices <- do.call(rbind, lapply(prc, data.frame, stringsAsFactors=FALSE))
+#prcprices <- as.data.frame(as.matrix(prc,nrow = 1))
+row.names(prices) <- paste(row.names(prices),"/BTC",sep="")
+names(prices) <- "CurrPrice"
+prices <- mutate(prices,Market = row.names(prices))
+df2 <- left_join(df1,prices, by = c("Market" = "Market"))
+df3 <- mutate(df2,PcageMove =(CurrPrice - Price)*100/Price)
+df3 <-mutate(df3,qBTC = (Quant * CurrPrice))
+
+#### 
+#### Summary total of qBTC
+df4 <- df3 %>% group_by(Market) %>% summarise(qCrypto = sum(Quant),qBTC = sum(qBTC))
+df5 <- summarise(df4,sum(qBTC))
+df5 <- append(c("Total",""),df5)
+nm <- c("Market","qCrypto","qBTC")
+names(df5) <- nm
+df6 <- rbind(df4,df5)
+df6$qCrypto <- as.numeric(df6$qCrypto)
+```
+
+Vcurr {data-icon="fa-area-chart"}
+====================================================================
+
+Inputs {.sidebar data-width=200}
+--------------------------------------
+
+```{r}
+dateInput(inputId = "dtChoice1",
+           label = "Choose a start date ",
+           value = "2017-09-01")
+
+selectInput(inputId = "indicator",
+             label = "Select instrument", 
+             selectize = FALSE,
+             choices = sort(mylst))
+
+
+```
+
+Column {.tabset data-width=400}
+-------------------------------------
+### Individual Dygraph 
+
+```{r}
+dataW1 <- reactive({
+        eval(parse(text = input$indicator))
+})
+
+renderDygraph({
+    dataW1()[,1:3][paste(input$dtChoice1,"::",sep="")] %>%        
+    dygraph(dataW1(),main = as.character(input$indicator)) %>%
+    dySeries(c("low","close","high"))
+    #dySeries(names(dataW1()[1:3]))
+  })
+```
+
+### BTC
+
+```{r}
+
+renderDygraph({
+    BTC[,1:3][paste(input$dtChoice1,"::",sep="")] %>%        
+    dygraph(BTC,main = "BTC/USD") %>%
+    dySeries(c("low","close","high"))
+  })
+```
+
+Column {data-width=400}
+-------------------------------------
+### CumulativeReturns
+
+```{r}
+renderPlot({   
+    plot(x = zoo.dp, ylab = "Cumulative Return %age", main = "KeyVCurr", col = tsRainbow, screens = 1,lwd = 2.5)
+    grid(NULL,NULL)
+    abline(h=0)
+  })
+```
+
+
+
+Column {data-width=200}
+-------------------------------------
+    
+### TableOfReturns - 21 Days
+
+```{r}
+renderTable({   
+    tor
+        }
+  )
+```
+
+Returns {data-icon="fa-table"}
+====================================================================
+
+Column {data-width=750}
+-------------------------------------
+### Returns on Buy Trades
+
+```{r} 
+renderTable({
+        df3
+},striped = TRUE ,spacing = "s", digits = 5, align = '?'
+#format(df3$CurrPrice,digits=5)
+#striped = FALSE, digits(df3$OrderNo) = 0
+)
+```
+
+Column {data-width=250}
+-------------------------------------
+### Totals in BTC
+
+```{r} 
+renderTable({
+        df6
+},digits = 2)
+```

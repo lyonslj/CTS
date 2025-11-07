@@ -18,65 +18,103 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 library(dygraphs)
+library(plyr)
 library(dplyr)
+library(tidyr)
 library(quantmod)
 library(xts)
 library(flexdashboard)
 library(readxl)
+library(openxlsx)
 library(gplots)
 library(RColorBrewer)
 library(reshape2)
 library(jsonlite)
 library(tidyr)
+
+library(coinmarketcapr)
+
 source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
 source('~/Documents/Personal/DataScience/R/JL CTS scripts/RelativeStrengthComparative.R')
 
 
-mylst <- c("ZRX","LSK","BCH","ARDR","BTS","ETH","LEND","LTC","MANA","SYS","XRP","ETC","XEM","REP","ZEC","DOGE","BCN","XLM","DGB","STRAT","SC","BAND","CHSB","KNC")
-
-#mylst <- c("ZRX","LSK","BCH","ARDR","BTS","ETH","EOS","LEND","LTC","MANA","SYS","XRP","ETC","XEM","REP","ZEC","NXT","DOGE","BCN","XLM","DGB","STRAT","SC","COMP","BTC")
 
 
-for(i in mylst) {
-        y <- fromJSON(paste("https://min-api.cryptocompare.com/data/histoday?fsym=",i,"&tsym=BTC&limit=200&aggregate=1",sep=""))
+#mylst <- c("FTM","AXS","TEL","EOS","XRP","RUNE","HEX","ONE","MATIC","FIL","CRO","HBAR","MRPH","AAVE","VGX","ALGO","ATOM","BNB","BTC","BAL","CRV","FUN","ZRX","LRC","ETH","ENJ","MANA","SYS","LINK","XLM","SXP","KSM","SC","BAND","CHSB","KNC","REN","EGLD","RLC","KAVA","ADA","KAVA","DOT","SOL","REN", "NPXS","SNX","LUNA","MKR","ANT","ICX","RING","SUSHI","THETA","ANKR","OCEAN","AST","XEM","AVAX","TRX","IOST","ZEC","UTK","UNI","XMR","YFI","VET") %>% unique()
+
+#mylst <- c("PAXG","AAVE","MKR","BTC","ETH","EOS","BNB","DOT","ADA","XRP","LTC","LINK","SNX","XLM","UNI","HEX","VET","MATIC","DOGE","ETC","SOL","AVAX","SHIB","CRO","TRX","THETA","ATOM","MANA","XRD","XDC")
+
+mylst <- c("PAXG","AAVE","MKR","BTC","ETH","EOS","BNB","ADA","XRP","LTC","LINK","SNX","XLM","HEX","VET","MATIC","DOGE","ETC","SOL","SHIB","CRO","TRX","THETA","XRD","AVAX")
+
+wtchlst <- c("TAO","PENDLE")
+
+## SRM insufficient data
+
+for(i in c(mylst,wtchlst)) {
+        y <- fromJSON(paste("https://min-api.cryptocompare.com/data/histoday?fsym=",i,"&tsym=USD&limit=200&aggregate=1",sep=""))
         y <- y$Data
         y$time <- strptime("1970-01-01", "%Y-%m-%d", tz="GMT") + y$time
-        z <- xts(y[,c("close")],order.by = y[,1])        # convert to xts
+       # z <- xts(y[,c("close")],order.by = y[,1])        # convert to xts
+        z <- xts(y[,c("close","high","low")],order.by = y[,1])        # convert to xts
         assign(i,z)
+        assign(paste(i,"_close",sep=""),z$close)
 }
 
+mylst_close <- paste(mylst,"_close",sep="")
+                        ##############################################################
+                        ##                    Generate xts set                       #
+                        ##############################################################
+                      
 
-        ##############################################################
-        ##                    Generate xts set                       #
-        ##############################################################
-        fnAvoid <- function(variables) {
-                
+      
 
-        mtls <- c("XAU","XAG")
-        getMetals(mtls,
-              from = Sys.Date()-180, to = Sys.Date(),
-              base.currency="USD",
-              env = .GlobalEnv,
-              verbose = FALSE,
-              warning = TRUE,
-              auto.assign = TRUE)
+        all_inst <- mylst_close
         
-        mtls <- paste(mtls,"USD",sep="")
-        #for(i in mtls) {
-        #                assign(i,z)
-        #        }
-        
-        all_inst <- c(mylst,mtls)
-        
-        }
-        all_inst <- mylst
-        # y_xts <- do.call(merge,sapply(mylst_close,as.name))  
-        y_xts <- do.call(merge,sapply(all_inst,as.name))  
+       
+        y_xts <- do.call(merge,sapply(all_inst,as.name)) 
+        colnames(y_xts) <- mylst
+       
         
         y_xts <- y_xts[complete.cases(y_xts),]
-        y_xts <- tail(y_xts,200)        ## restrict to 200 entries
+        y_xts <- tail(y_xts,170)        ## restrict to 200 entries
         xts_set <- y_xts
         cols_xts <- ncol(y_xts)
+        
+        ###############################################################################
+        #             Determine if price is above or below its 21SMA                  #
+        ###############################################################################
+        
+        sma_set <- xts_set
+        
+        for(i in mylst) {
+                ### 21 mda ###
+                tt <- as.name(paste("SMA(sma_set$",i,",n=21)",sep="",collapse = ""))         # paste string for SMA statement ie SMA(column,11)
+                ### 50 mda ###
+                t50 <- as.name(paste("SMA(sma_set$",i,",n=50)",sep="",collapse = ""))
+                ## 21MA
+                sma_set$Sma21 <- eval(parse(text = tt))                                       #create new column by parsing string as reg expression
+                col <- length(names(sma_set))
+                names(sma_set)[col] <- paste(i,"Sma21",sep="")                                              # rename column
+                ##50MA
+                sma_set$Sma50 <- eval(parse(text = t50))                               #create new column by parsing string as reg expression
+                col <- length(names(sma_set))
+                names(sma_set)[col] <- paste(i,"Sma50",sep="")                                              # rename column
+                
+                 
+                sma_set$res  <- ifelse((sma_set[,1] > sma_set[,(col-1)]) & (sma_set[,col-1] > sma_set[,(col)]), 2,     # p >21 > 50 --> 2
+                                ifelse((sma_set[,(col-1)] > sma_set[,1]) & (sma_set[,1] > sma_set[,(col)]),1,        # 21 > p > 50 --> 1
+                                ifelse((sma_set[,(col)] > sma_set[,1]) & (sma_set[,1] > sma_set[,col-1]),0,       # 50 > p > 21 --> 0
+                                ifelse((sma_set[,1] > sma_set[,(col)]) & (sma_set[,col] > sma_set[,col-1]),1,        # p > 50 > 21 --> 1
+                                       -2))))
+                
+                
+                sma_set <- sma_set[,-c(1,col,col-1)]                                            # remove pair
+                names(sma_set)[ncol(sma_set)] <- i                                                  # rename
+        }
+        
+       ################################################################################## 
+        #
+        
         
         ### Calculate RSC ratios for all column pairs ###
         for(z in (1:(cols_xts-1))) {
@@ -150,7 +188,7 @@ for(i in mylst) {
                         .csv",sep="")
         df.z <- tail(data.frame(z),30)  
         colnames(df.z) <- gsub("\\.","-",names(df.z))
-        #df.z <- df.z[complete.cases(df.z),]
+        df.z <- na.omit(df.z)
         df.z <- t(df.z)
         df.z <- df.z[order(df.z[,ncol(df.z)]),]
 
@@ -158,35 +196,128 @@ for(i in mylst) {
 
 to_graph <<- rownames(head(df.z[order(-df.z[,ncol(df.z)]),],25))  ##Longs
 
+                        ##############################################################
+                        ##      Calcs set to show price rel to moving averages       #
+                        ##############################################################
 
+path <- "/Users/johnlyons/Documents/Personal/DataScience/R/Stuff"
+
+                file.list <- list.files(path = "/Users/johnlyons/Documents/Personal/DataScience/R/Stuff",pattern='Gecko.*xlsx')
+                df.lst <- lapply(file.list, function (x) read.xlsx(paste(path,x,sep="/"),detectDates = TRUE))
+                bigdf <- ldply(df.lst, rbind)           # combine into one datafram
+                
+                # Remove old format rows
+                dat <- bigdf
+                dat <- dat[,-c(1:5)]
+                dat <- na.omit(dat)
+                
+                med_dat <- dat %>%
+                        select(Dt,'24h') %>%
+                        group_by(Dt) %>%
+                        dplyr::summarise(Median24hr = median(`24h`),
+                                  PosMoves = length(`24h`[`24h` >= 0]),
+                                  NegMoves = length(`24h`[`24h` < 0]))
+                                  
+               #No Pos Moves
+                med_dat$mda7PosMoves <- SMA(med_dat$PosMoves, n = 7)
+                med_dat$mda30PosMoves <- SMA(med_dat$PosMoves, n = 30)
+                #No Neg Moves
+                med_dat$mda7NegMoves <- SMA(med_dat$NegMoves, n = 7)
+                med_dat$mda30NegMoves <- SMA(med_dat$NegMoves, n = 30)
+                #%age move
+                med_dat$`%age7dma` <- format(SMA(med_dat$Median24hr, n = 7),nsmall=2)
+                med_dat$`%age30dma` <- format(SMA(med_dat$Median24hr, n = 30),nsmall=2)
+                
+                z <- xts(med_dat[,-c(2,3,4)],order.by = as.Date(med_dat$Dt))
 
 
 
 ```
 
-## Market Analysis Cryptos vs metals  {.tabset .tabset-fade .tabset-pills}
+## Market Analysis Cryptos  {.tabset .tabset-fade .tabset-pills}
+
+### Positive MA's
+
+#### Coins whose prices are above 21day SMA
+
+```{r, fig.width=20,  fig.height= 15, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+  
+x <- t(tail(sma_set,80))
+RscHeatmap(x, "Price above 21day SMA")
+
+        
+```
+
+### Top 300 Movers
+
+```{r, fig.width=20,  fig.height= 10, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+
+dateWindow <- c(as.character(Sys.Date()-150), as.character(Sys.Date()))
+                  
+htmltools::browsable(htmltools::tagList(dygraph(z[,c(1,6,7)], main = "Daily average %age move for top 300 coins") %>%
+                                                #dyRebase(percent = TRUE) %>%
+                                                dyAxis("y", valueRange = c(-10, 4)) %>%
+                                                dyRangeSelector(dateWindow = dateWindow) %>%
+                                                dyOptions(colors = c("blue","green")) %>%
+                                                dyLimit(0, color = "black") %>% 
+                                                dyHighlight(highlightSeriesOpts = list(strokeWidth = 3)) %>%
+                                                dyLegend(show = "onmouseover" ,hideOnMouseOut = TRUE) %>%
+                                                dyRibbon(data = ifelse(z$`%age7dma` <= -2 ,1,0) , 
+                                                         palette = c("#ffe6e6","#ccebd6")) %>%
+                                                    #     top = -10, bottom = -9) %>%
+                                                dyLegend(width = 800)))
+
+htmltools::browsable(htmltools::tagList(dygraph(z[,c(1:3)], main = "Average number of coins with positive day moves - Top300") %>%
+                                                #dyRebase(percent = TRUE) %>%
+                                                dyRangeSelector(dateWindow = dateWindow) %>%
+                                                dyOptions(colors = c("green","blue")) %>%
+                                                dyLimit(145, color = "black",strokePattern = "solid") %>% 
+                                                dyRibbon(data = ifelse((z$mda7PosMoves <= 120),0,1) , 
+                                                         palette = c("#ffe6e6","#ccebd6")) %>%
+                                                dyLimit(120, color = "red") %>% 
+                                                dyHighlight(highlightSeriesOpts = list(strokeWidth = 3)) %>%
+                                                dyLegend(show = "onmouseover" ,hideOnMouseOut = TRUE) %>%
+                                                dyLegend(width = 800)))
+
+htmltools::browsable(htmltools::tagList(dygraph(z[,c(1,4,5)], main = "Average number of coins with negative day moves - Top300") %>%
+                                                #dyRebase(percent = TRUE) %>%
+                                                dyRangeSelector(dateWindow = dateWindow) %>%
+                                                dyOptions(colors = c("red","black")) %>%
+                                                dyLimit(145, color = "black") %>% 
+                                                dyLimit(170, color = "red") %>% 
+                                                dyRibbon(data = ifelse((z$mda7NegMoves > 170),0,1) , 
+                                                         palette = c("#ffe6e6","#ccebd6")) %>%
+                                                dyHighlight(highlightSeriesOpts = list(strokeWidth = 3)) %>%
+                                                dyLegend(show = "onmouseover" ,hideOnMouseOut = TRUE) %>%
+                                                dyLegend(width = 800)))
+
+
+        
+```
 
 ### Heatmap
 
-```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+```{r, fig.width=18,  fig.height= 10, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
      
   RscHeatmap(df.z, "Virtuals")                #Create heatmap
         
 ```
 
-#### Comparative
+#### Comparative %age move - 15 days
 
-```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+```{r, fig.width=10,  fig.height= 4.5, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
      ## -- return top 10
         
        
         set <- gsub("-",".",to_graph)[1:10]        ## Exclude dashes
         inst <- xts_set[,set]
-       
+        dateWindow <- c(as.character(Sys.Date()-15), as.character(Sys.Date()))
 
      htmltools::browsable(htmltools::tagList(dygraph(inst, main = "Percent", group = "stock") %>%
         dyRebase(percent = TRUE) %>%
-        #dyRangeSelector(dateWindow = dateWindow) %>%
+        dyRangeSelector(dateWindow = dateWindow) %>%
         dyOptions(colors = RColorBrewer::brewer.pal(10, "Paired")) %>%
         dyLimit(0, color = "black") %>% 
         dyHighlight(highlightSeriesOpts = list(strokeWidth = 3)) %>%
@@ -199,25 +330,28 @@ to_graph <<- rownames(head(df.z[order(-df.z[,ncol(df.z)]),],25))  ##Longs
 
 #### Dygraph
 
-```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+```{r, fig.width=10,  fig.height= 4.5, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
   
         set <- gsub("-","",to_graph)    
+
+
         
  
 
 fnMa <- function(x) {
-        z <- eval(parse(text = x))[,1]
+        z <- eval(parse(text = x))[,1:3]
         z <- cbind(z, SMA(z[,1], n=21))
         z <- cbind(z, SMA(z[,1], n=50))
-        colnames(z)[1:3] <- c('Close','SMA21','SMA50')
-        return(tail(z,70))
+        colnames(z)[4:5] <- c('SMA21','SMA50')
+        return(tail(z,80))
+        
 }
 
         mylst <- paste("`",set,"`",sep="")    ## add `` so that - is ignored
         htmltools::browsable(htmltools::tagList(lapply(unique(mylst), function(x) 
                         dygraph(fnMa(x), main = x) %>% 
-                        #dySeries(c("Low","Close","High"))     
-                        dySeries(c("Close"))     
+                        dySeries(c("low","close","high"))   
+                        #dySeries(c("Close"))     
         )))
 
 ```

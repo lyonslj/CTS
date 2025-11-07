@@ -1,0 +1,131 @@
+---
+title: "Untitled"
+author: "John Lyons"
+date: "4/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(TTR)
+library(quantmod)
+library(reshape2)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(reshape2)
+library(DT)
+library(plotly)
+library(lubridate)
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/DailyGraphNoPng.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/WeeklyGraph.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RelativeStrengthComparative.R')
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/PLv2.R")
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/CumRetDyG.R")
+
+
+
+wd_xts <- df.z #xts
+
+lst12 <- rownames(tail(na.omit(df.z), 12)) # Get the last 12 row names
+filt_dat <- eow[eow$Name %in% lst12,]
+filt_dat <- filt_dat[,c(1,2,6)]
+
+wide_dat <- pivot_wider(
+  filt_dat,
+  id_cols = Date,
+  names_from = Name,
+  values_from = Close,
+  values_fn = first # THIS IS THE KEY ADDITION
+)
+
+
+wide_dat <- wide_dat %>%
+  distinct()
+
+## Data that will be used in graph
+xts_dat <- xts(wide_dat[, -1], order.by = wide_dat$Date)        # convert to xts
+
+## Extract the top 12 instruments
+wd_xts <- t(df.z) #transpose
+wd_xts_filt <- wd_xts[, colnames(wd_xts) %in% lst12]
+
+
+
+
+
+```
+
+
+
+### Returns
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+
+   
+     
+
+########### --------------############
+     
+library(dygraphs)
+library(xts)
+library(htmltools)
+library(RColorBrewer)
+library(htmlwidgets)
+
+
+
+
+
+n_cols <- ncol(wd_xts_filt)
+## Date range that the slider will display
+dateWindow <- c(max(index(xts_dat))-220, max(index(xts_dat)))
+
+
+gg <- htmltools::browsable(htmltools::tagList(
+  # Wrap the dygraph in a div that establishes a positioning context
+  htmltools::div(style = "position: relative; width: 800px; height: 400px;", # Set dimensions for the graph container
+    dygraph(xts_dat, main = "Percent Gains - Top12", group = "stock") %>%
+      dyRebase(percent = TRUE) %>%
+      dyRangeSelector(dateWindow = dateWindow) %>%
+      dyOptions(
+        colors = c("#FF0000", "#00FF00", "#0000FF", "#FF00FF", "#FFA500", "#00FFFF",
+                   "#1E90FF", "#32CD32", "#FFD700", "#9400D3", "#DC143C", "#20B2AA"),
+        gridLineColor = "transparent"  # Remove grid lines
+      ) %>%
+      dyLimit(0, color = "black") %>%
+      dyHighlight(highlightSeriesOpts = list(strokeWidth = 2)) %>%
+      dyAxis("y", valueFormatter = htmlwidgets::JS("
+        function(x) {
+          var formatted = (x * 100).toFixed(2);
+          return formatted + '%';
+        }
+      ")) %>%
+      dyLegend(
+        hideOnMouseOut = TRUE,
+        show = "always",
+        labelsSeparateLines = TRUE,
+        labelsDiv = "legendDiv" # Legend will render into this div
+      ),
+    # This div will contain the legend, absolutely positioned over the chart
+           htmltools::div(
+          id = "legendDiv",
+          style = "
+            position: absolute;
+            left: 80px; /* Increased from 60px to move the legend slightly right */
+            top: 20px;
+            width: 150px;
+            background-color: rgba(255, 255, 255, 0.85);
+            border: 1px solid #ccc;
+            padding: 5px;
+            z-index: 10;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+          "
+        )
+  )
+))
+
+
+```

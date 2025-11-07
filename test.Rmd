@@ -1,0 +1,54 @@
+---
+title: "Untitled"
+author: "John Lyons"
+date: "4/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(TTR)
+library(quantmod)
+library(reshape2)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(reshape2)
+library(DT)
+library(plotly)
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/DailyGraphNoPng.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/WeeklyGraph.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RelativeStrengthComparative.R')
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/PLv2.R")
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/CumRetDyG.R")
+
+my_data <- read.table(pipe("pbpaste"), sep="\t", header = TRUE)
+xx <-read.csv()
+
+View(my_data)
+md_grp <- my_data %>%
+        group_by(Fee.Currency, Price) %>%
+        summarise(Quant = sum(Amount)) 
+colnames(md_grp) <- c("CoinSymbol","PurchPrice_BTC","Quant")
+md_grp <- merge(md_grp,crypts[,c("CoinSymbol","Price_BTC")], all.x = TRUE)        
+
+
+
+
+
+```
+
+
+
+### Returns
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+        
+cum_ret_list <- c("GOLD", "PHAR")
+for (i in cum_ret_list) {
+                CumRetDyG(eval(parse(text = i)))
+        }
+        
+```

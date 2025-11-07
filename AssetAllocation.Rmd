@@ -1,0 +1,209 @@
+---
+title: "AssetAllocation"
+author: "John Lyons"
+date: "2025-06-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_chunk$set(echo = FALSE)
+
+library(plotly)
+library(ggplot2)
+library(leaflet)
+library(openxlsx)
+library(tidyr)
+library(DT)
+library(data.table)
+library(lattice)
+library(knitr)
+library(kableExtra)
+library(gridExtra)
+library(lubridate)
+library(plotly)
+library(dplyr)
+
+
+##
+# instrm data
+il <- read.xlsx("AssetAllocation.xlsx", sheet = "Sheet1")
+il$Date <- as.Date(il$Date, origin = "1899-12-30")
+il <- il[,-6] 
+# price data
+prices <- read.xlsx("AssetAllocation.xlsx", sheet = "Sheet2") 
+prices$Date <- as.Date(prices$Date, origin = "1899-12-30")     # fix excel origin 
+
+
+# cast long
+prices_long <- prices %>%
+        pivot_longer(
+                cols = -Date,
+                names_to = "Instrument",
+                values_to = "Price"
+        )
+
+
+ missing_dates <- as.Date(setdiff(prices_long$Date, il$Date))
+ ## Create a tmp table to ad missing dates to il that can be joined with prices
+ tmp_il <- il[,c(1,3,5)] %>%
+         group_by(Instrument, Allocation, HoldingEntity) 
+ 
+ tmp_il1 <- tidyr::crossing(tmp_il, Date = missing_dates) # create all combinations for missing data
+ tmp_il1 <- tmp_il1 %>% mutate(Unit = 0) # Add column
+ tmp_il1 <- tmp_il1[,c(1,4,2,5,3)] #re-order
+ tmp_il2 <- rbind(il, tmp_il1) %>% arrange(Date, Instrument) # join to il to get all combinations
+
+dats <- unique(prices_long$Date) 
+
+grp_assets <- tmp_il2 %>%   
+  arrange(Instrument, Allocation,HoldingEntity, Date) %>% 
+  dplyr::group_by(Instrument, Allocation, HoldingEntity) %>%
+  dplyr::mutate(CumulativeUnits = cumsum(Unit)) %>%
+  ungroup() # Don't forget to ungroup if you plan further operations
+
+ 
+ ## join prices and calc values
+ asset_prices <- grp_assets %>%
+  left_join(prices_long, by = c("Date", "Instrument")) %>%
+  mutate(AssetUsdValue = CumulativeUnits * Price) %>%
+  arrange(Date, Instrument)
+ 
+ 
+  
+ val_by_alloc <- asset_prices[,c(-1,-4:-7)] %>%
+        arrange(Date, Allocation) %>%
+        dplyr::group_by(Date,Allocation) %>%
+        dplyr::mutate(AssetValByAlloc = sum(AssetUsdValue, na.rm = TRUE)) %>%
+        ungroup() 
+
+ltst_hold <- grp_assets %>%
+ group_by(paste(Instrument,Allocation,sep="")) %>%
+ slice(which.max(Date)) %>%
+ ungroup()
+  ####### Workings
+
+ 
+ 
+ #################################################
+  
+
+```
+
+
+
+
+# Allocation
+
+
+```{r, fig.width=8, message= FALSE, warning=FALSE, echo = FALSE}
+
+
+g1 <- ggplot(data = ltst_hold, aes(x = Allocation, y = CumulativeUnits, fill = Instrument)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = round(CumulativeUnits, 2)), # Display Unit value, rounded to 2 decimal places
+            position = position_dodge(width = 0.9), # Must match the dodge position of geom_bar
+            vjust = 0.5, # Adjusts vertical position of the label (above the bar)
+            size = 3) + # Controls the size of the text labels
+  facet_grid(HoldingEntity ~ Instrument,
+             scales = "free_y",
+             labeller = labeller(Instrument = function(labels) {
+               sapply(labels, function(label) {
+                 total_units <- total_units_by_instrument %>%
+                   filter(Instrument == label) %>%
+                   pull(TotalUnits)
+                 formatted_total <- formatC(total_units, format = "f", digits = 0, big.mark = ",")
+                 paste0(label, "\\n(Total: ", formatted_total, ")") # Use \\n for new line if it fits better
+               })
+             })) +
+  theme_bw() + # Changed theme to theme_light()
+  labs(title = "Units per Allocation by Instrument and Holding Entity with Total Units",
+       x = "Allocation",
+       y = "CumulativeUnits") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.text.y = element_text(angle = 0), # Keep vertical facet labels for HoldingEntity
+        strip.text.x = element_text(size = 8)  # Adjust size for horizontal labels if they get too long
+        )
+        
+# Convert to plotly
+g1_plotly <- ggplotly(g1)
+
+# Display the plotly plot
+        g1_plotly        
+
+ 
+``` 
+ 
+# Units
+ 
+```{r, fig.width=8, message= FALSE, warning=FALSE, echo = FALSE}
+
+############ -------------------------------################
+###############
+g <- ggplot(data = asset_prices, aes(x = Date, y = AssetUsdValue)) +
+  geom_line(aes(color = HoldingEntity), linewidth = 0.3) + # Added color based on Allocation
+  geom_point(size = 0.5) +     # Add points to mark data points
+  geom_text(aes(label = formatC(AssetUsdValue, format = "f", digits = 0,
+                                , big.mark = ",")), # Add text labels
+            nudge_y = (-0.08 * asset_prices$AssetUsdValue),
+            vjust = -0.7,      # Adjust vertical position (slightly above the point)
+            size = 2.5,          # Text size
+            color = "black",   # Text color
+            check_overlap = TRUE) + # Hide overlapping labels for better visibility
+  facet_grid(Allocation ~ Instrument, scales = "free_y") +
+   theme_bw() + # Using theme_bw 
+  labs(title = "Total $ Value Trend by Instrument and Holding Entity Over Time",
+       x = "Date",
+       y = "Total Value",
+       color = "Holding Entity") + # Label for the color legend (this will now refer to line color)
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        strip.text.x = element_text(size = 9), # Adjust size for facet labels
+        panel.grid.major.y = element_line(color = "lightgray", linewidth = 0.1),
+        panel.grid.minor.y = element_line(color = "lightgray", linewidth = 0.1),
+        panel.grid.major.x = element_line(color = "black", linewidth = 0.1),
+        panel.grid.minor.x = element_line(color = "black", linewidth = 0.1) +
+  scale_x_date(breaks = unique(asset_prices$Date), date_labels = "%b-%d")
+  )
+  
+g
+```
+
+
+
+# Investment Value
+
+```{r, fig.width=8, message= FALSE, warning=FALSE, echo = FALSE}
+
+p <- ggplot(data = unique(val_by_alloc[,-3]), aes(x = Date, y = AssetValByAlloc)) +
+  geom_line(aes(color = Allocation), linewidth = 0.3) +
+  geom_point(size = 0.5) +
+  geom_text(aes(label = formatC(AssetValByAlloc, format = "f", digits = 0, big.mark = ",")),
+            nudge_y = 0.00005 * max(val_by_alloc$AssetValByAlloc),
+            size = 2.5,
+            color = "black",
+            check_overlap = TRUE) +
+  facet_grid(Allocation ~ ., scales = "free_y") +
+  theme_bw() +
+  labs(title = "Total $ Value Trend by Account Over Time",
+       x = "Date",
+       y = "Total Value",
+       color = "Holding Entity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        strip.text.x = element_text(size = 9) ,
+       # panel.grid.major.y = element_line(color = "lightgray", linewidth = 0.1),
+       # panel.grid.minor.y = element_line(color = "lightgray", linewidth = 0.1),
+       # panel.grid.major.x = element_line(color = "black", linewidth = 0.1),
+         panel.grid.minor.x = element_line(color = "black", linewidth = 0.1)) +
+  scale_x_date(breaks = unique(val_by_alloc$Date), date_labels = "%Y-%m-%d")
+
+# Convert to plotly
+p_plotly <- ggplotly(p)
+
+
+# Display the plotly plot
+p_plotly      
+
+
+
+```

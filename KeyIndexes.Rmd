@@ -1,0 +1,201 @@
+---
+output: html_document
+fig_width: 23
+fig.align: "center"
+
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dygraphs)
+library(dplyr)
+library(quantmod)
+library(xts)
+library(flexdashboard)
+library(readxl)
+library(gplots)
+library(RColorBrewer)
+library(reshape2)
+library(jsonlite)
+library(tidyr)
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RelativeStrengthComparative.R')
+mylst <- c("ZRX","LSK","BCH","ARDR","BTS","ETH","LEND","LTC","MANA","SYS","XRP","ETC","XEM","REP","ZEC","DOGE","BCN","XLM","DGB","STRAT","SC","BAND","CHSB","KNC")
+#mylst <- c("ZRX","LSK","BCH","ARDR","BTS","ETH","EOS","LEND","LTC","MANA","SYS","XRP","ETC","XEM","REP","ZEC","NXT","DOGE","BCN","XLM","DGB","STRAT","SC","COMP","BTC")
+for(i in mylst) {
+        y <- fromJSON(paste("https://min-api.cryptocompare.com/data/histoday?fsym=",i,"&tsym=BTC&limit=200&aggregate=1",sep=""))
+        y <- y$Data
+        y$time <- strptime("1970-01-01", "%Y-%m-%d", tz="GMT") + y$time
+        z <- xts(y[,c("close")],order.by = y[,1])        # convert to xts
+        assign(i,z)
+}
+        ##############################################################
+        ##                    Generate xts set                       #
+        ##############################################################
+        fnAvoid <- function(variables) {
+                
+        mtls <- c("XAU","XAG")
+        getMetals(mtls,
+              from = Sys.Date()-180, to = Sys.Date(),
+              base.currency="USD",
+              env = .GlobalEnv,
+              verbose = FALSE,
+              warning = TRUE,
+              auto.assign = TRUE)
+        
+        mtls <- paste(mtls,"USD",sep="")
+        #for(i in mtls) {
+        #                assign(i,z)
+        #        }
+        
+        all_inst <- c(mylst,mtls)
+        
+        }
+        all_inst <- mylst
+        # y_xts <- do.call(merge,sapply(mylst_close,as.name))  
+        y_xts <- do.call(merge,sapply(all_inst,as.name))  
+        
+        y_xts <- y_xts[complete.cases(y_xts),]
+        y_xts <- tail(y_xts,200)        ## restrict to 200 entries
+        xts_set <- y_xts
+        cols_xts <- ncol(y_xts)
+        
+        ### Calculate RSC ratios for all column pairs ###
+        for(z in (1:(cols_xts-1))) {
+                for(i in z:(cols_xts-1)){                                                       
+                        y_xts$new_col_name <- y_xts[,z]/y_xts[,i+1]                             # calculate pair ratio z fixed 1, i 1:15 # z 2, i 2:15
+                        new_col_name <- paste(names(y_xts[,z]),names(y_xts[,i+1]), sep="_",collapse=".")    #
+                        names(y_xts)[ncol(y_xts)] <- new_col_name                              # get last column place and name it
+                }
+                z <- z+1
+        }
+        #names(y_xts)
+        rsc_set <- y_xts[,-1:-cols_xts]                                                         # remove base set to leave rsc pairs
+        rsc_set_omit <- na.omit(rsc_set)                                                        # remove N/A's
+        df.rsc_set <- data.frame(Date = index(rsc_set_omit),rsc_set_omit)                       # convert from xts back to df
+        
+        ### --------------------------------------------###
+        ### Calc and add columns for rsc 11 and 89 ma's ###
+        ### --------------------------------------------###
+        set <- names(df.rsc_set)                                                                # column names to use 105
+        set1 <- set[-1]                                                                         # exclude the Date column
+        ### Initialise your final data frame set ###
+        df.rsc_calc_set <- data.frame(NULL)                                             # this can be problematic with the rbind
+        for(i in set1) {
+                ### 11 mda ###
+                pairma11 <- paste(i,"ma11",sep="_")
+                tt <- as.name(paste("SMA(df.rsc_set$",i,",n=11)",sep="",collapse = ""))         # paste string for SMA statement ie SMA(column,11)
+                df.rsc_set$pair <- eval(parse(text = tt))                                       # create new column by parsing string as reg expression
+                col <- length(names(df.rsc_set))
+                names(df.rsc_set)[col] <- pairma11                                              # rename column
+                ### 89 mda ###
+                pairma89 <- paste(i,"ma89",sep="_")
+                tt <- as.name(paste("SMA(df.rsc_set$",i,",n=89)",sep="",collapse = ""))         # paste string for SMA statement
+                df.rsc_set$pair <- eval(parse(text = tt))                                       # create new column by parsing string as reg expression
+                col <- length(names(df.rsc_set))
+                names(df.rsc_set)[col] <- pairma89
+                ### working set ###
+                a <- paste("df.rsc_set$",i,sep="",collapse = "")   
+                b <- paste("df.rsc_set$",pairma11,sep="",collapse = "")
+                c <- paste("df.rsc_set$",pairma89,sep="",collapse = "")   
+                pair <- eval(parse(text = a))
+                pair.ma11 <- eval(parse(text = b))
+                pair.ma89 <- eval(parse(text = c))
+                ### Extract pairs to new set df.rsc_set and rbind together ###
+                xx <- df.rsc_set[,c("Date",i,pairma11,pairma89)]
+                xx <- cbind(i,xx)
+                names(xx) <- c("Pair","Date","Value","Value11","Value89")
+                df.rsc_calc_set <- rbind(df.rsc_calc_set,xx)
+        }
+        df.rsc_calc_set$Result<-ifelse((df.rsc_calc_set$Value > df.rsc_calc_set$Value11) & (df.rsc_calc_set$Value11 > df.rsc_calc_set$Value89),2,     
+                                       ifelse((df.rsc_calc_set$Value < df.rsc_calc_set$Value11) & (df.rsc_calc_set$Value11 < df.rsc_calc_set$Value89), -2,1))
+        df.new <- separate(df.rsc_calc_set, Pair, into = c("Base","Quoted"), sep = "_")                         # Split pair into base and quoted instrm
+        ### Create compute frame ###
+        BaseFrame <- filter(df.new, df.new$Result == 2) 
+        BaseFrameSelect <- select(BaseFrame,Base,Date,Result)
+        names(BaseFrameSelect) <- c("Instr","Date","Result")
+        QuoteFrame <- filter(df.new, df.new$Result == -2) 
+        QuoteFrameSelect <- select(QuoteFrame,Quoted,Date,Result)
+        QuoteFrameSelect$Result <- 2                                                            # convert -ve to +ve
+        names(QuoteFrameSelect) <- c("Instr","Date","Result")
+        BQ <- filter(df.new, df.new$Result == 1) 
+        BQSelect1 <- select(BQ,Base,Date,Result)
+        names(BQSelect1) <- c("Instr","Date","Result")
+        BQSelect2 <- select(BQ,Quoted,Date,Result)
+        names(BQSelect2) <- c("Instr","Date","Result")
+        ### Bind the sets ###
+        FinalFrame <- rbind(BaseFrameSelect,QuoteFrameSelect,BQSelect1,BQSelect2)
+        FinalAggregate <- aggregate(Result ~ Instr + Date,FinalFrame,sum)                       # Aggregate
+        FinalAggregateSpread <- spread(FinalAggregate,Instr,Result) 
+        z <- xts(FinalAggregateSpread[,-1],order.by = FinalAggregateSpread[,1])        # convert to xts
+        mypath <- paste(file.path("/Users/johnlyons/Documents/Personal/DataScience/R/RPlots/"),"
+                        .csv",sep="")
+        df.z <- tail(data.frame(z),30)  
+        colnames(df.z) <- gsub("\\.","-",names(df.z))
+        #df.z <- df.z[complete.cases(df.z),]
+        df.z <- t(df.z)
+        df.z <- df.z[order(df.z[,ncol(df.z)]),]
+to_graph <<- rownames(head(df.z[order(-df.z[,ncol(df.z)]),],25))  ##Longs
+```
+
+## Market Analysis Cryptos vs metals  {.tabset .tabset-fade .tabset-pills}
+
+### Heatmap
+
+```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+  RscHeatmap(df.z, "Virtuals")                #Create heatmap
+        
+```
+
+#### Comparative
+
+```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     ## -- return top 10
+        
+       
+        set <- gsub("-",".",to_graph)[1:10]        ## Exclude dashes
+        inst <- xts_set[,set]
+       
+     htmltools::browsable(htmltools::tagList(dygraph(inst, main = "Percent", group = "stock") %>%
+        dyRebase(percent = TRUE) %>%
+        #dyRangeSelector(dateWindow = dateWindow) %>%
+        dyOptions(colors = RColorBrewer::brewer.pal(10, "Paired")) %>%
+        dyLimit(0, color = "black") %>% 
+        dyHighlight(highlightSeriesOpts = list(strokeWidth = 3)) %>%
+        dyLegend(show = "onmouseover" ,hideOnMouseOut = TRUE) %>%
+        dyLegend(width = 800)))
+     
+    
+        
+```
+
+#### Dygraph
+
+```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+  
+        set <- gsub("-","",to_graph)    
+        
+ 
+fnMa <- function(x) {
+        z <- eval(parse(text = x))[,1]
+        z <- cbind(z, SMA(z[,1], n=21))
+        z <- cbind(z, SMA(z[,1], n=50))
+        colnames(z)[1:3] <- c('Close','SMA21','SMA50')
+        return(tail(z,70))
+}
+        mylst <- paste("`",set,"`",sep="")    ## add `` so that - is ignored
+        htmltools::browsable(htmltools::tagList(lapply(unique(mylst), function(x) 
+                        dygraph(fnMa(x), main = x) %>% 
+                        #dySeries(c("Low","Close","High"))     
+                        dySeries(c("Close"))     
+        )))
+```

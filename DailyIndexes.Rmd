@@ -1,0 +1,268 @@
+---
+output: html_document
+fig_width: 23
+fig.align: "center"
+
+---
+
+
+<style type="text/css">
+.main-container {RSC(c())
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(dygraphs)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(quantmod)
+library(xts)
+library(flexdashboard)
+library(readxl)
+library(openxlsx)
+library(gplots)
+library(RColorBrewer)
+library(reshape2)
+library(jsonlite)
+library(tidyr)
+
+library(coinmarketcapr)
+
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RelativeStrengthComparative.R')
+
+
+##      --------- Load dat
+## Previously Loaded data
+JSEloaded_dat <- read.csv("/Users/johnlyons/Documents/Personal/DataScience/R/JSEdat.csv", header = TRUE, sep="")
+#                          stringsAsFactors = FALSE)
+## -- Convert to correct format
+#JSEloaded <- JSEloaded_dat[,-1]
+JSEloaded <- distinct(JSEloaded_dat)
+JSEloaded$Date <- as.Date(JSEloaded$Date, "%Y-%m-%d")
+#JSEloaded <- JSEloaded[JSEloaded$Date != "2020-04-9",]
+## -- Check for last loaded date
+max(sort(JSEloaded$Date))
+JSEdat <- JSEloaded
+
+JSE.recent.dat <- JSEdat[JSEdat$Date >= Sys.Date()-450,]
+JSE.recent.dat <- unique(JSE.recent.dat[complete.cases(JSE.recent.dat),])
+
+# Factors to numerics
+cols <- 3:7
+JSEdat[, cols] <- apply(JSEdat[, cols], 2, as.numeric)
+
+mylst <- unique(c("JSE-ALSH","JSE-LGCAP","JSE-RESI","JSE-INDI","JSE-FINI","JSE-TECH","JSE-TELE","JSE-HEAL","JSE-REALE","JSE-CONSD","JSE-CONST","JSE-ENRGY","JSE-BANK","JSE-LIFE","JSE-CONSS","JSE-RETAL","JSE-BEVR","JSE-FOOD","JSE-TABAC","JSE-PDG","JSE-CONM","JSE-INDM","JSE-CHES","JH-ALSI40","SP500","NASDAQ","NIKKEI","C-USDZAR","C-BTCUSD","C-ETHUSD","SILV-R","GOLD-R","SATRIXNDA"))
+
+mydat <- filter(JSEdat, JSEdat$Name %in% mylst)
+mydat1 <- mydat[,c(2,1,6)]
+mydat1 <- mydat1[mydat1$Date >= Sys.Date()-450,]
+mydat1 <- aggregate(Close ~ Name + Date,mydat1,sum)  # remove dups for spread
+mydat1$Name <- gsub("JSE-|JH-|DJ-|C-|-R","",mydat1$Name)
+
+zz <- spread(mydat1,Name,Close) 
+z <- xts(zz[,-1],order.by = as.Date(zz$Date))        # convert to xts
+
+
+
+                        ##############################################################
+                        ##                    Generate xts set                       #
+                        ##############################################################
+    
+        y_xts <- z[complete.cases(z),]
+        y_xts <- tail(y_xts,170)        ## restrict to 200 entries
+        xts_set <- y_xts
+        cols_xts <- ncol(y_xts)
+        
+        ###############################################################################
+        #             Determine if price is above or below its 21SMA                  #
+        ###############################################################################
+        
+        sma_set <- xts_set
+        
+        ##
+        ## Get red of JSE- in name as - wont process
+        ##
+        
+        mylst_names <- gsub("JSE-|JH-|DJ-|C-|-R","",mylst)
+        
+        
+        
+        
+        for(i in mylst_names) {
+                ### 21 mda ###
+                tt <- as.name(paste("SMA(sma_set$",i,",n=21)",sep="",collapse = ""))         # paste string for SMA statement ie SMA(column,11)
+                ### 50 mda ###
+                t50 <- as.name(paste("SMA(sma_set$",i,",n=50)",sep="",collapse = ""))
+                ## 21MA
+                sma_set$Sma21 <- eval(parse(text = tt))                                       #create new column by parsing string as reg expression
+                col <- length(names(sma_set))
+                names(sma_set)[col] <- paste(i,"Sma21",sep="")                                              # rename column
+                ##50MA
+                sma_set$Sma50 <- eval(parse(text = t50))                               #create new column by parsing string as reg expression
+                col <- length(names(sma_set))
+                names(sma_set)[col] <- paste(i,"Sma50",sep="")                                              # rename column
+                
+                col_num <- which(names(sma_set) == i)                                   # position of i 
+                sma_set$res  <- ifelse((sma_set[,col_num] > sma_set[,(col-1)]) & (sma_set[,col-1] > sma_set[,(col)]), 2,     # p >21 > 50 --> 2
+                                ifelse((sma_set[,(col-1)] > sma_set[,col_num]) & (sma_set[,col_num] > sma_set[,(col)]),1,        # 21 > p > 50 --> 1
+                                ifelse((sma_set[,(col)] > sma_set[,col_num]) & (sma_set[,col_num] > sma_set[,col-1]),0,       # 50 > p > 21 --> 0
+                                ifelse((sma_set[,col_num] > sma_set[,(col)]) & (sma_set[,col] > sma_set[,col-1]),1,        # p > 50 > 21 --> 1
+                                       -2))))
+
+                sma_set <- sma_set[,-c(col_num,col,col-1)]                                            # remove pair
+               # sma_set 
+                names(sma_set)[ncol(sma_set)] <- i                                                  # rename
+        }
+        
+       
+        ################################################################################## 
+        
+        
+       
+        
+        
+        ### Calculate RSC ratios for all column pairs ###
+#         for(z in (1:(cols_xts-1))) {
+#                 for(i in z:(cols_xts-1)){                                                       
+#                         y_xts$new_col_name <- y_xts[,z]/y_xts[,i+1]                             # calculate pair ratio z fixed 1, i 1:15 # z 2, i 2:15
+#                         new_col_name <- paste(names(y_xts[,z]),names(y_xts[,i+1]), sep="_",collapse=".")    #
+#                         names(y_xts)[ncol(y_xts)] <- new_col_name                              # get last column place and name it
+#                 }
+#                 z <- z+1
+#         }
+#         #names(y_xts)
+#         rsc_set <- y_xts[,-1:-cols_xts]                                                         # remove base set to leave rsc pairs
+#         rsc_set_omit <- na.omit(rsc_set)                                                        # remove N/A's
+#         df.rsc_set <- data.frame(Date = index(rsc_set_omit),rsc_set_omit)                       # convert from xts back to df
+#         
+#         ### --------------------------------------------###
+#         ### Calc and add columns for rsc 11 and 89 ma's ###
+#         ### --------------------------------------------###
+#         set <- names(df.rsc_set)                                                                # column names to use 105
+#         set1 <- set[-1]                                                                         # exclude the Date column
+#         ### Initialise your final data frame set ###
+#         df.rsc_calc_set <- data.frame(NULL)                                             # this can be problematic with the rbind
+#         for(i in set1) {
+#                 ### 11 mda ###
+#                 pairma11 <- paste(i,"ma11",sep="_")
+#                 tt <- as.name(paste("SMA(df.rsc_set$",i,",n=11)",sep="",collapse = ""))         # paste string for SMA statement ie SMA(column,11)
+#                 df.rsc_set$pair <- eval(parse(text = tt))                                       # create new column by parsing string as reg expression
+#                 col <- length(names(df.rsc_set))
+#                 names(df.rsc_set)[col] <- pairma11                                              # rename column
+#                 ### 89 mda ###
+#                 pairma89 <- paste(i,"ma89",sep="_")
+#                 tt <- as.name(paste("SMA(df.rsc_set$",i,",n=89)",sep="",collapse = ""))         # paste string for SMA statement
+#                 df.rsc_set$pair <- eval(parse(text = tt))                                       # create new column by parsing string as reg expression
+#                 col <- length(names(df.rsc_set))
+#                 names(df.rsc_set)[col] <- pairma89
+#                 ### working set ###
+#                 a <- paste("df.rsc_set$",i,sep="",collapse = "")   
+#                 b <- paste("df.rsc_set$",pairma11,sep="",collapse = "")
+#                 c <- paste("df.rsc_set$",pairma89,sep="",collapse = "")   
+#                 pair <- eval(parse(text = a))
+#                 pair.ma11 <- eval(parse(text = b))
+#                 pair.ma89 <- eval(parse(text = c))
+#                 ### Extract pairs to new set df.rsc_set and rbind together ###
+#                 xx <- df.rsc_set[,c("Date",i,pairma11,pairma89)]
+#                 xx <- cbind(i,xx)
+#                 names(xx) <- c("Pair","Date","Value","Value11","Value89")
+#                 df.rsc_calc_set <- rbind(df.rsc_calc_set,xx)
+#         }
+#         df.rsc_calc_set$Result<-ifelse((df.rsc_calc_set$Value > df.rsc_calc_set$Value11) & (df.rsc_calc_set$Value11 > df.rsc_calc_set$Value89),2,     
+#                                        ifelse((df.rsc_calc_set$Value < df.rsc_calc_set$Value11) & (df.rsc_calc_set$Value11 < df.rsc_calc_set$Value89), -2,1))
+#         df.new <- separate(df.rsc_calc_set, Pair, into = c("Base","Quoted"), sep = "_")                         # Split pair into base and quoted instrm
+#         ### Create compute frame ###
+#         BaseFrame <- filter(df.new, df.new$Result == 2) 
+#         BaseFrameSelect <- select(BaseFrame,Base,Date,Result)
+#         names(BaseFrameSelect) <- c("Instr","Date","Result")
+#         QuoteFrame <- filter(df.new, df.new$Result == -2) 
+#         QuoteFrameSelect <- select(QuoteFrame,Quoted,Date,Result)
+#         QuoteFrameSelect$Result <- 2                                                            # convert -ve to +ve
+#         names(QuoteFrameSelect) <- c("Instr","Date","Result")
+#         BQ <- filter(df.new, df.new$Result == 1) 
+#         BQSelect1 <- select(BQ,Base,Date,Result)
+#         names(BQSelect1) <- c("Instr","Date","Result")
+#         BQSelect2 <- select(BQ,Quoted,Date,Result)
+#         names(BQSelect2) <- c("Instr","Date","Result")
+#         ### Bind the sets ###
+#         FinalFrame <- rbind(BaseFrameSelect,QuoteFrameSelect,BQSelect1,BQSelect2)
+#         FinalAggregate <- aggregate(Result ~ Instr + Date,FinalFrame,sum)                       # Aggregate
+#         FinalAggregateSpread <- spread(FinalAggregate,Instr,Result) 
+#         z <- xts(FinalAggregateSpread[,-1],order.by = FinalAggregateSpread[,1])        # convert to xts
+#         mypath <- paste(file.path("/Users/johnlyons/Documents/Personal/DataScience/R/RPlots/"),"
+#                         .csv",sep="")
+#         df.z <- tail(data.frame(z),30)  
+#         colnames(df.z) <- gsub("\\.","-",names(df.z))
+#         #df.z <- df.z[complete.cases(df.z),]
+#         df.z <- t(df.z)
+#         df.z <- df.z[order(df.z[,ncol(df.z)]),]
+# 
+# 
+# 
+# to_graph <<- rownames(head(df.z[order(-df.z[,ncol(df.z)]),],25))  ##Longs
+# 
+#                         ##############################################################
+#                         ##      Calcs set to show price rel to moving averages       #
+#                         ##############################################################
+# 
+# path <- "/Users/johnlyons/Documents/Personal/DataScience/R/Stuff"
+# 
+#                 file.list <- list.files(path = "/Users/johnlyons/Documents/Personal/DataScience/R/Stuff",pattern='Gecko.*xlsx')
+#                 df.lst <- lapply(file.list, function (x) read.xlsx(paste(path,x,sep="/"),detectDates = TRUE))
+#                 bigdf <- ldply(df.lst, rbind)           # combine into one datafram
+#                 
+#                 # Remove old format rows
+#                 dat <- bigdf
+#                 dat <- dat[,-c(1:5)]
+#                 dat <- na.omit(dat)
+#                 
+#                 med_dat <- dat %>%
+#                         select(Dt,'24h') %>%
+#                         group_by(Dt) %>%
+#                         dplyr::summarise(Median24hr = median(`24h`),
+#                                   PosMoves = length(`24h`[`24h` >= 0]),
+#                                   NegMoves = length(`24h`[`24h` < 0]))
+#                                   
+#                #No Pos Moves
+#                 med_dat$mda7PosMoves <- SMA(med_dat$PosMoves, n = 7)
+#                 med_dat$mda30PosMoves <- SMA(med_dat$PosMoves, n = 30)
+#                 #No Neg Moves
+#                 med_dat$mda7NegMoves <- SMA(med_dat$NegMoves, n = 7)
+#                 med_dat$mda30NegMoves <- SMA(med_dat$NegMoves, n = 30)
+#                 #%age move
+#                 med_dat$`%age7dma` <- format(SMA(med_dat$Median24hr, n = 7),nsmall=2)
+#                 med_dat$`%age30dma` <- format(SMA(med_dat$Median24hr, n = 30),nsmall=2)
+#                 
+#                 z <- xts(med_dat[,-c(2,3,4)],order.by = as.Date(med_dat$Dt))
+
+
+
+```
+
+## Market Analysis Cryptos  {.tabset .tabset-fade .tabset-pills}
+
+### Positive MA's
+
+#### Coins whose prices are above 21day SMA
+
+```{r, fig.width=20,  fig.height= 15, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+  
+x <- t(tail(sma_set,80))
+RscHeatmap(x, "Price above 21day SMA")
+
+
+
+        
+```
+
+
+

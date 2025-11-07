@@ -1,0 +1,419 @@
+---
+output: html_document
+fig_width: 23
+fig.align: "center"
+
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+
+library(TTR)
+library(quantmod)
+library(reshape2)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(reshape2)
+library(DT)
+library(plotly)
+library(dygraphs)
+
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/DailyGraphNoPng.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/WeeklyGraph.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RscHeatmap.R')
+source('~/Documents/Personal/DataScience/R/JL CTS scripts/RelativeStrengthComparative.R')
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/PLv2.R")
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/CumRet.R")
+source("/Users/johnlyons/Documents/Personal/DataScience/R/JL CTS scripts/CumRetDyG.R")
+
+##      --------- Load dat
+## Previously Loaded data
+        JSEloaded_dat <- read.csv("/Users/johnlyons/Documents/Personal/DataScience/R/JSEdat.csv", 
+                                  stringsAsFactors = FALSE)
+        ## -- Convert to correct format
+        JSEloaded <- JSEloaded_dat[,-1]
+        JSEloaded$Date <- as.Date(JSEloaded$Date, "%Y-%m-%d")
+        #JSEloaded <- JSEloaded[JSEloaded$Date != "2020-04-9",]
+        ## -- Check for last loaded date
+        mx_dt <- max(sort(JSEloaded$Date))
+        JSEdat <- JSEloaded
+
+JSE.recent.dat <- JSEdat[JSEdat$Date >= Sys.Date()-450,]
+JSE.recent.dat <- unique(JSE.recent.dat[complete.cases(JSE.recent.dat),])
+
+
+list.of.i <- NULL
+list.inst.above.sma21 <- NULL
+df.daily.roc <- NULL
+df.weekly.roc <- NULL
+df.monthly.roc <- NULL
+for(i in unique(JSE.recent.dat$Name)) {
+        ## -- Get list of instruments  
+                y <- JSE.recent.dat[JSE.recent.dat$Name == i,]
+                z <- xts(y[,3:7],order.by = y[,2])        # convert to xts
+                z <- cbind(z, SMA(z[,4], n=21))
+                z <- cbind(z, SMA(z[,4], n=50))
+                colnames(z)[6:7] <- c('SMA21','SMA50')
+                zm <- to.period(z,"months")
+             
+        ## Last Month           
+                xx <- format(Sys.Date()-30,"%Y-%m")
+                zm.mar <- zm[xx]
+        ## -- Test for volume
+                if ((dim(zm.mar)[1] == 1) && (as.numeric(zm.mar$z.Volume) > 2000000 )) {
+                        list.of.i <- append(list.of.i, i)
+                        assign(paste(i,"-M",sep=""),zm)         #Monthly data
+                        assign(i,z)                             #Daily data
+             
+                }
+                
+        ##      -- Create list where instr > and < MA21
+                last_day <- z[mx_dt]
+                 if ((dim(last_day)[1] == 1) &&last_day$Close > last_day$SMA21) {
+                                list.inst.above.sma21 <- append(list.inst.above.sma21, i)
+                                
+                        } 
+              
+
+}
+
+                        ## -- Get rid NA's
+                       ## df.daily.roc <- na.omit(df.daily.roc)
+                        #df.weekly.roc <- na.omit(df.weekly.roc)
+                        #df.monthly.roc <- na.omit(df.monthly.roc)
+
+excl_list <- ("AGLSBB|AMSSBE|AMSSBP|ANGSBA|ANGSBO|ANGSBY|APNSBG|APNSBH|ASHINF|ASHMID|ASHT40|ASHWGB|BLUSBH|BHPSBF|CSP500|CSPROP|CTOP50|DIPULA-A|DIPULA-B|EQUITES|ETF5IT|ETFGLD|ETFPLD|ETFPLT|ETFSAP|FIRSTRNDP|GFISBC|GFISBD|GFISBT|HARSBW|HARSBO|IMPSBH|IMPSBI|IMPSBV|INDLU|J200USD|JH-ALEX|JH-ALSI40|JH-ASIN|JH-FLED|JH-MIDCAP|JH-RES|JH-SMALL|JSE|JSE-ALPI|JSE-ALSH|JSE-ALT15|JSE-ALTX|JSE-AUTM|JSE-BANK|JSE-BASM|JSE-BEVR|JSE-CALS|JSE-CHES|JSE-CIN25|JSE-COAL|JSE-CONG|JSE-CONM|JSE-CONS|JSE-CPI|JSE-CTOP|JSE-DALS|JSE-DIVP|JSE-DTOP|JSE-ELEE|JSE-EQII|JSE-FINA|JSE-FINDI|JSE-FINI|JSE-FJGI|JSE-FJVI|JSE-FOOD|JSE-FOOR|JSE-FORE|JSE-FTEL|JSE-GENF|JSE-GENI|JSE-GERE|JSE-GOLD|JSE-HCOM|JSE-HEAL|JSE-HEES|JSE-HOUS|JSE-IIND|JSE-INDE|JSE-INDI|JSE-INDM|JSE-INDT|JSE-LGCAP|JSE-LIFE|JSE-MEDI|JSE-METL|JSE-MINI|JSE-MTEL|JSE-NLIF|JSE-OILG|JSE-OILP|JSE-PERG|JSE-PHAR|JSE-PLAT|JSE-PRUT|JSE-PULS|JSE-REDS|JSE-REIV|JSE-RESI|JSE-SAPI|JSE-SCOM|JSE-SCTP|JSE-SRI|JSE-SUPS|JSE-SW40|JSE-SWALS|JSE-SXTRI|JSE-TABA|JSE-TECH|JSE-TELE|KIOSBN|MRPSBG|NPNSBA|MTNSBB|GFISBU|SBKSBB|NPNSBB|NPNSBC|NPNSBP|NPNSBZ|Nedbank-P|PRXSBQ|PSG-KST|SATRIX40|SATRIX500|SATRIXDIV|SATRIXEMG|SATRIXNDQ|SATRIXRAF|SATRIXRES|SATRIXSWX|SATRIXWRD|SBEN05|SBKSBO|SGLSBC|SGLSBD|SGLSBE|SGLSBU|SGLSTD|SHPSBG|SOLSBC|SOLSBE|STANBANKP|STXFIN|STXILB|STXIND|STXPRO|STXQUA|SYG4IRGE|SYGEURO50|SYGSP500|SYGSWIX40|TOPSBA|TOPSBB|TOPSBN|TOPSBO|TOPSBW|TOPSBX|TOPSBY|UBNPNE|VODSBG|ZA077|ZA079|WHLSBD|WHLSBE|ZAMBEZI-P|C-|JT-|SBP|SBF|SPP|SBB|SBE|SBA|SBJ|SBW|SBX|AMB|NFW|SBE|SBR|SPIB|SBX|SXE|ALBI|ASN|Cognit|GSA|GSE|IIE|IIF|sani|NBE|NFE|NWF|Gaia|SOLS|SXB|TOPS|UMM|UOM|UBS|ALL-O|AMIB5|APNSB|AWAPROP|RLDP|-BOV|SBQ|DCC|DSYB|ENX|EPP|EPRA|ETF|FRK|RSBM|FT-|GOVI|GOLD-|HANG|IAP|IBLVR|IBRPR|IPECR|JSX|KCC|KLSE|KR-|LBHP|LPES|2D|_GRO|MSCI|MTNS|MTNZ|RECP|QMOM|TRACI|NPNS|OIL-|PRXS|QUANTU|RACP|RDF|RHBOP|RIPLC|RJCRB|SAVI|SBKS|SENSE|SILV-|SP50|SPXIS|SWST|SWX|SYG-|SYGT|G-P|TR2|TOR-G|TSE3|UAB|UBR|UEF|UPC|URET|USD-|USDN|VISII|VKE|WTI_")
+
+        list.to.rsc <- list.inst.above.sma21[!grepl(excl_list, list.inst.above.sma21)]
+
+pIndexes<-("C-YENZAR|GOLD-R|C-JPYUSD|JSE-INDI|JSE-CONS|C-USDZAR|JSE-TECH|JSE-GOLD|NIKKEI|JSE-PLAT|JSE-PLAT|JSE-METL|UALSB|JSE-INDM|JSE-FOOD|JSE-PHAR|JSE-OILG|JSE-HEAL|SP500|JH-ALSI40|USALB|JSE-COAL|JSE-RESI|JSE-ALTX|JSE-BANK|BRENT|JSE-AUTM")
+
+        PLAT <- c("RBPLAT","ANGLOPLAT","IMPLATS","NORTHAM","SIBANYE-S")
+        GOLD <- c("ANGGOLD"   ,"PAN-AF", "DRDGOLD" ,  "HARMONY" ,  "GFIELDS")
+        INDM <- c("KUMBAIO")
+        BANK <- c("ABSAG","STANBANK","NEDCOR","FIRSTRAND","CAPITEC","DISCOVERY")
+        FOOD <- c("RCL","CLOVER","RHODES","A-V-I","OCEANA","ASTRAL","TONGAAT","PNR-FOODS","TIGBRANDS","JSE-FOOD")
+        METL <- c("GLENCORE","ARM","ANGLO","ASSORE")# removed missing data ,"BILLITON"
+        CONS <- c("ADVTECH","BIDCORP","CITYLDG","CLICKS","CURRO","CASHBIL","FAMBRANDS","ITLTILE",
+                  "MRPRICE","MASSMART","NASPERSN","PICKNPAY","SHOPRIT","SPAR","SUNINT","TFG","TRUWTHS","WOOLIES")
+        TECH <- c("PROSUS","DATATEC","ALTRON", "NASPERSN")
+        RESI <- c("ANGLO","ANGLOPLAT","ANGGOLD","GFIELDS","IMPLATS","SAPPI","SIBANYE-S","SASOL")# removed ,"BILLITON"
+        HEAL <- c("ASPEN","ADCOCK","ASCENDIS","MEDCLIN","NETCARE")
+        TELE <- c("BLUETEL","TELKOM","MTN","VODACOM")
+        PHAR <- c("ASCENDIS","ASPEN","ADCOCK")
+        OILG <- c("MONTAUK","SASOL")
+        COAL <- "EXXARO"
+        NEWGOLD <- "NEWGOLD"
+        INDI <- c("ABINBEV","ASPEN","AVLN","BIDVEST","RICHEMONT","CLICKS","LIFEHC","MEDCLIN","MTN","NASPERSN",
+                  "NETCARE","PICKNPAY","PROSUS","SHOPRIT","SPAR","TIGBRANDS","TFG","TRUWTHS","VODACOM","WOOLIES",
+                  "MCGROUP","MRPRICE","BATS","BARWORLD","BIDCORP")
+        FINI <- c("CAPITEC","DISCOVERY","FIRSTRAND","GROWPNT","INVLTD","INVPLC","NEDCOR","NEPIROCK",
+                  "OMUTUAL","REDEFINE","REMGRO","RMBH","REINET","SANLAM","STANBANK","ABSAG")
+
+ 
+                
+        ## -- Prepare tables
+                fnPrepData <- function(dat,period) {
+                        colnames(dat)[2] <- "Close"
+                        tm.frame <- ifelse(period == "w", 100,
+                                ifelse(period == "m", 450, 7))
+                        df.d.latest <- dat[dat$Date >= max(dat$Date)- tm.frame ,]
+                        dd <- spread(df.d.latest, Date, Close)
+                        lcol <- ncol(dd)
+                        dd$M <- round(apply(dd[,c(2:lcol)],1,mean),2)
+                        row.names(dd) <- dd$Insrm
+                        dd <- dd[,-1]
+                        dd[order(-dd$M),]
+                        
+                }
+                
+                
+                ##      ---------------------   ##      ----------------------  #
+                ##                      Datatable
+                
+                my_palette <- colorRampPalette(c("red", "yellow", "green"))(n = 301)
+
+                # (optional) defines the color breaks manually for a "skewed" color transition
+                col_breaks = c(seq(-10,-5,length=60),  # for red
+                               seq(-4,0,length=60),           # for yellow
+                               seq(1,5,length=60),           # for yellow
+                               seq(6,10,length=60),           # for yellow
+                               seq(11,30,length=60))             # for green
+                
+                  fnRocTable <- function(dat.roc,x)     { 
+                        colnames(dat.roc) <- substr(names(dat.roc),6,10)
+                        colnames(dat.roc)[ncol(dat.roc)] <- "Mean"
+                        DT::datatable(dat.roc, caption = x, 
+                                      class = 'cell-border stripe', rownames = TRUE, 
+                                      editable = TRUE, 
+                                      options = list(dom="Bfrtip",
+                                                     pageLength = 50, autoWidth = TRUE)) %>%          
+                                formatStyle(columns = c(0:ncol(dat.roc)), fontSize = '60%',
+                                            backgroundColor = styleInterval(col_breaks, 
+                        my_palette))
+                        
+                }
+             
+                  ##      ---------------------   ##      ----------------------  #
+                  ##            create daily, weekly, monthly with exclusions
+                  
+                tbl.daily.roc <-   fnPrepData(df.daily.roc,"d")
+                        tbl.daily.R <-  tbl.daily.roc[!grepl(excl_list, rownames(tbl.daily.roc)) ,]
+                        tbl.JseD.R  <-  tbl.daily.roc[grepl(Indexes, rownames(tbl.daily.roc)) ,]
+            
+                
+                
+                ##      -------------------------------------------------------         ##
+                ##                              Live Trades                             ##
+                ##      -------------------------------------------------------         ##
+                        
+                Trades <- read_excel("/Users/johnlyons/Dropbox/CTS/Trades.xlsx",
+                                     col_names = TRUE,na = "")
+                Trades <- as.data.frame(Trades)
+                Trades$Purchase <- as.Date(Trades$Purchase)
+                Trades$`Exit Dt` <- as.Date(Trades$`Exit Dt`)
+                mylst <- subset(Trades,is.na(Trades$Exit)) 
+                instLive <- as.character(sort(mylst[,1]))
+                        
+                ##      -------------------------------------------------------         ##
+                ##                              Commodities                             ##
+                ##      -------------------------------------------------------         ##
+                commods <- c("BRENT","COPPER-$","ZINC-$","IRONORE","NICKEL","PALLAD-R","GOLD-R","GOLD-PM","PLAT-R","SILV-$","SILV-R","RJCRB-TRI" )
+                
+                fnJunk <- function(variables) {
+                
+                }
+```
+
+
+## Market Analysis  {.tabset .tabset-fade .tabset-pills}
+
+### Indexes
+
+```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+     
+      lst <- c("GOLD-R","JSE-INDI","JH-ALSI40","JSE-FINI","JSE-GOLD","JSE-PLAT","JSE-METL","JSE-CONS","JSE-COAL","JSE-INDM","JSE-FOOD","JSE-PHAR","JSE-RESI","JSE-OILG","JSE-HEAL","JSE-BANK","JSE-TECH","JSE-TELE")
+        RSC(lst,"RSC Daily Indexes")   
+        
+```
+
+
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}     
+     
+        RscHeatmap(tbl.JseD.R, "Daily Returns") 
+       
+```
+
+
+
+#### Graph Daily Indexes
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE}  
+      
+      instrm_set <- head(rownames(tbl.JseD.R),19)
+     DailyGraphNoPng(instrm_set)
+        
+```
+
+#### Graph Weekly Indexes
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE}  
+      
+      
+     WeeklyGraph(instrm_set) # This call dyGraph
+        
+```
+
+
+
+
+### Risk
+
+```{r, fig.width=13,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+        
+        fnProffitLoss()
+        CumRet(unique(instLive),Sys.Date()-10)
+        
+```
+
+### Index Leaders - Losers
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7,  message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+        ## to_graph returned from RSC(indexes)
+        leads_cr <- head(to_graph,5)
+        leads_cr <- gsub("JSE-","",leads_cr)
+        leads_cr <- gsub("GOLD-R","NEWGOLD",leads_cr)
+       # leads_cr <- paste("`",leads_cr,"`",sep="")
+        
+        lose_cr <- tail(to_graph,4)  
+        lose_cr <- gsub("JSE-","",lose_cr)
+        lose_cr <- gsub("GOLD-R","NEWGOLD",lose_cr)
+
+         
+        
+        ## CumRet Leaders
+                lds <- as.character(unlist(lapply(leads_cr, function(x) paste(eval(parse(text = x))))))
+                 lsrs <- as.character(unlist(sapply(lose_cr, function(x) paste(eval(parse(text = x))))))
+                CumRet(unique(lds),Sys.Date()-10,paste("Leaders 10day -",leads_cr))
+        ## CumRet Losers
+               
+                CumRet(lsrs,Sys.Date()-10,paste("Losers 10day - ",lose_cr))
+                
+```
+
+#### RSC Leaders
+
+```{r, out.width="80%",fig.width=9,  fig.height= 7,  message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+        lds <- lds[!grepl("SIBANYE",lds)]
+         RSC(lds,"RSC Leaders")
+
+```
+
+#### Dy Leads 
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+
+fnMa <- function(x) {
+        z <- eval(parse(text = x))[,1:4]
+        z <- cbind(z, SMA(z[,4], n=21))
+        z <- cbind(z, SMA(z[,4], n=50))
+        colnames(z)[5:6] <- c('SMA21','SMA50')
+        return(tail(z,70))
+}
+        ## DyGraph - leaders
+        mylst <- paste("`",head(to_graph,10),"`",sep="")    ## add `` so that - is ignored
+        htmltools::browsable(htmltools::tagList(lapply(unique(mylst), function(x) 
+                        dygraph(fnMa(x), main = x) %>% 
+                        dySeries(c("Low","Close","High"))                               
+                        )))
+      
+```
+
+#### RSC Losers
+
+```{r, out.width="80%",fig.width=9,  fig.height= 7,  message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+
+         RSC(lsrs,"RSC Losers")
+
+```
+
+
+#### Dy  Losers
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+
+        ## DyGraph - losers
+        mylst <- paste("`",lsrs,"`",sep="")    ## add `` so that - is ignored
+        mylst <- mylst[!grepl(c("MONTAUK|RCL|CLOVER|PNR-FOODS|CASHBIL"),mylst)]
+        htmltools::browsable(htmltools::tagList(lapply(unique(mylst), function(x) 
+                        dygraph(fnMa(x), main = x) %>% 
+                        dySeries(c("Low","Close","High"))                               
+                        )))
+```
+
+
+#### Index Leaders
+
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE}  
+      
+     DailyGraphNoPng(lds)
+        
+```
+
+#### Index Losers
+
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE}  
+      
+     DailyGraphNoPng(lsrs)
+
+```
+### Daily
+
+```{r, fig.width=14,  fig.height= 8, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+        leaders <- head(rownames(tbl.daily.R[order(-tbl.daily.R[,ncol(tbl.daily.R)-1]),]),30)
+        
+       # RSC(leaders,"RSC Daily leaders")
+        
+```
+
+
+#### Graph Top Daily
+
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE}  
+      
+      instrm_set <- head(leaders,16)
+              #rownames(tbl.daily.R),15)
+     DailyGraphNoPng(gsub("\\.","-", to_graph))
+        
+```
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+        
+        fnRocTable(tbl.daily.R, "DailyROC")
+        
+```
+
+
+
+### Live Trades
+
+```{r, out.width="80%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}       
+        
+        RSC(instLive,"RSC Live Trades")
+        
+        
+```
+
+#### Dy Live
+
+```{r, out.width="80%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+
+fnMa <- function(x) {
+        z <- eval(parse(text = x))[,1:4]
+        z <- cbind(z, SMA(z[,4], n=21))
+        z <- cbind(z, SMA(z[,4], n=50))
+        colnames(z)[5:6] <- c('SMA21','SMA50')
+        return(tail(z,70))
+}
+
+        mylst <- paste("`",instLive,"`",sep="")    ## add `` so that - is ignored
+        htmltools::browsable(htmltools::tagList(lapply(unique(mylst), function(x) 
+                        dygraph(fnMa(x), main = x) %>% 
+                        dySeries(c("Low","Close","High"))                               
+        )))
+        
+      
+        
+        
+```
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+
+        DailyGraphNoPng(instLive)
+        
+```
+
+
+
+```{r, out.width="50%",fig.width=9,  fig.height= 7, message= FALSE, warning=FALSE, echo = FALSE, silent = TRUE}   
+        
+   #     fnRocTable(tbl.weekly.R, "WeeklyROC")
+```
+
+
